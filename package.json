@@ -1,0 +1,13 @@
+{
+  "name": "screen-share-live",
+  "version": "0.1.0",
+  "private": true,
+  "description": "屏幕共享 + 双向通话：信令服务与静态页",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

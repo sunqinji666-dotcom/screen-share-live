@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-build="__BUILD__">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>屏幕共享 · 主播端</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "PingFang SC", sans-serif; background: #101014; color: #e8e8ee; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 24px 20px 60px; }
+  .layout { display: flex; gap: 18px; align-items: flex-start; }
+  .main { flex: 1; min-width: 0; }
+  .side { width: 340px; flex: none; display: flex; flex-direction: column; gap: 16px; position: sticky; top: 16px; max-height: calc(100vh - 40px); overflow-y: auto; }
+  .side .card { margin-top: 0; }
+  #chatCard.show { display: flex; flex-direction: column; flex: 1; min-height: 220px; }
+  #chatCard.show .chatlist { flex: 1; max-height: none; min-height: 120px; }
+  @media (max-width: 1020px) {
+    .layout { flex-direction: column; }
+    .side { width: auto; position: static; max-height: none; overflow: visible; }
+  }
+  /* 发送状态条：紧贴视频预览上方，数据变动高亮闪烁 */
+  #liveStats { margin-top: 16px; }
+  .statrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  .sitem { font-size: 12px; color: #8a8a99; background: #1c1c23; border: 1px solid #26262e; border-radius: 8px; padding: 6px 10px; }
+  .sitem b { font-family: ui-monospace, Menlo, monospace; font-weight: 600; color: #e8e8ee; transition: background .5s, color .5s; padding: 1px 6px; border-radius: 6px; display: inline-block; }
+  .sitem b.flash { background: rgba(46,107,255,.4); color: #fff; transition: none; }
+  .sitem b.good { color: #6ee7a0; }
+  .sitem b.warn { color: #f0b429; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #8a8a99; font-size: 13px; margin-bottom: 20px; line-height: 1.6; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; background: #2a2a33; color: #aaa; margin-left: 8px; vertical-align: middle; }
+  .badge.on { background: #1d4d2b; color: #6ee7a0; }
+  button { font: inherit; border: 0; border-radius: 10px; padding: 12px 22px; cursor: pointer; background: #2e6bff; color: #fff; font-weight: 600; }
+  button.stop { background: #d43a3a; }
+  button.ghost { background: #26262e; color: #cfcfda; }
+  button.muted { background: #3a2a2a; }
+  button:disabled { opacity: .4; cursor: default; }
+  #startBtn { font-size: 17px; padding: 14px 30px; }
+  video { width: 100%; max-height: 420px; background: #000; border-radius: 12px; margin-top: 16px; display: none; }
+  .card { background: #17171d; border: 1px solid #26262e; border-radius: 12px; padding: 14px 16px; margin-top: 16px; display: none; }
+  .card.show { display: block; }
+  .link { font-family: ui-monospace, Menlo, monospace; font-size: 13px; word-break: break-all; color: #9cc0ff; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .viewers { margin-top: 8px; font-size: 13px; color: #b9b9c6; }
+  .vrow { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+  .vlabel { min-width: 74px; }
+  .levelbar { flex: 1; height: 8px; background: #26262e; border-radius: 4px; overflow: hidden; }
+  .levelfill { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #2e6bff, #6ee7a0); border-radius: 4px; transition: width .22s ease-out; }
+  .vstate { min-width: 118px; text-align: right; font-size: 12px; color: #8a8a99; }
+  .vops { display: flex; gap: 6px; }
+  .opbtn { padding: 3px 9px; font-size: 12px; background: #26262e; color: #cfcfda; border-radius: 6px; border: 0; cursor: pointer; }
+  .opbtn.active { background: #3a2a2a; color: #ff9d9d; }
+  .opbtn.danger { color: #ff9d9d; }
+  .chatlist { max-height: 180px; overflow-y: auto; font-size: 13px; line-height: 1.8; color: #d8d8e2; }
+  .chatmsg b { color: #9cc0ff; font-weight: 600; }
+  .chatmsg.me b { color: #6ee7a0; }
+  .chatrow { display: flex; gap: 8px; margin-top: 10px; }
+  .chatrow input { flex: 1; width: auto; }
+  .chatrow select { font: inherit; font-size: 13px; background: #1c1c23; color: #e8e8ee; border: 1px solid #33333d; border-radius: 10px; padding: 8px 10px; }
+  .speakerRow { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #26262e; font-size: 13px; color: #b9b9c6; }
+  .speakerRow input[type=range] { flex: 1; accent-color: #2e6bff; }
+  /* 文件消息（七牛直传） */
+  .fstat { font-size: 12px; color: #8a8a99; }
+  .fstat.err { color: #ff9d9d; }
+  .fstat.ok { color: #6ee7a0; }
+  .fbar { height: 4px; background: #26262e; border-radius: 2px; margin-top: 4px; overflow: hidden; max-width: 260px; }
+  .fbarfill { display: block; height: 100%; width: 0%; background: #2e6bff; transition: width .25s; }
+  .stats { margin-top: 10px; font-size: 12px; color: #8a8a99; font-family: ui-monospace, Menlo, monospace; }
+  input { font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid #33333d; background: #1c1c23; color: #e8e8ee; width: 320px; }
+  .tip { color: #8a8a99; font-size: 12px; margin-top: 6px; }
+  .modebtn { background: #26262e; color: #cfcfda; font-weight: 500; font-size: 14px; padding: 10px 16px; }
+  .modebtn.active { background: #2e6bff; color: #fff; font-weight: 600; }
+  #camSelf { width: 240px !important; max-height: none !important; margin-top: 14px; }
+  #camsRow { display: none; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+  #camsRow.show { display: flex; }
+  .cambox { width: 200px; }
+  .cambox video { width: 200px !important; max-height: none !important; height: 112px; object-fit: cover; margin-top: 0 !important; border-radius: 10px; display: block; }
+  .cambox .camname { font-size: 12px; color: #8a8a99; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="layout">
+    <div class="main">
+  <h1>屏幕共享 · 主播端 <span id="stateBadge" class="badge">未开播</span></h1>
+  <div class="sub">点「开始共享」后，在弹窗里选择要共享的屏幕（主屏 / 副屏 / 任意窗口都行）。<br>
+  观众用生成的链接在微信里直接点开即可观看，并可以和你对话。</div>
+
+  <div id="secretCard" class="card show">
+    <div class="row">
+      <input id="secretInput" type="password" placeholder="主播密钥 / 访客密码（首次输入，之后自动记住）">
+      <button id="saveSecretBtn" class="ghost">保存</button>
+    </div>
+    <div class="tip">孙哥用自己的主播密钥；拿到访客密码的朋友，把密码粘进来同样可以开播。</div>
+    <div class="tip" id="codeTip" style="display:none;color:#6ee7a0"></div>
+  </div>
+
+  <div class="row" style="margin-top:16px">
+    <button id="startBtn">开始共享</button>
+    <button id="stopBtn" class="stop" disabled>结束共享</button>
+    <button id="camBtn" class="modebtn" disabled>📷 摄像头</button>
+    <button id="copyBtn" class="ghost" disabled>复制观众链接</button>
+  </div>
+
+
+  <div id="liveStats" class="card show" style="display:none">
+    <div class="statrow">
+      <span class="sitem">发送画质 <b id="stRes">—</b></span>
+      <span class="sitem">帧率 <b id="stFps">—</b></span>
+      <span class="sitem">采集 <b id="stCap">—</b></span>
+      <span class="sitem">速率 <b id="stRate">—</b></span>
+      <span class="sitem">编码占用 <b id="stEnc">—</b></span>
+      <span class="sitem">延迟 <b id="stRtt">—</b></span>
+      <span class="sitem">线路 <b id="stVia">—</b></span>
+    </div>
+  </div>
+
+  <video id="preview" muted autoplay playsinline></video>
+  <video id="camSelf" muted autoplay playsinline style="display:none"></video>
+
+  <div id="camsRow"></div>
+
+  <div id="linkCard" class="card">
+    <div style="font-size:13px;color:#8a8a99;margin-bottom:6px">观众链接（微信里直接点开）：</div>
+    <div id="inviteLink" class="link"></div>
+  </div>
+
+
+    </div>
+    <aside class="side">
+  <div id="viewersCard" class="card">
+    <div style="font-size:13px;color:#8a8a99">观众与通话</div>
+    <div id="viewerList" class="viewers">暂无观众</div>
+    <div class="speakerRow" id="micRow" style="display:none">
+      <span>🎙️ 我的麦克风</span>
+      <span class="levelbar"><span class="levelfill" id="myLevel"></span></span>
+      <button id="micBtn" class="ghost" style="padding:6px 12px;font-size:12px">闭麦</button>
+    </div>
+    <div class="speakerRow" id="micVolRow" style="display:none">
+      <span>🎚️ 麦克风音量</span>
+      <input type="range" id="micVol" min="0" max="200" value="100">
+      <span id="micVolVal" style="width:52px;text-align:right;font-size:12px;color:#8a8a99;font-variant-numeric:tabular-nums">100%</span>
+    </div>
+    <div class="speakerRow" id="sysVolRow" style="display:none">
+      <span>🖥️ 系统声音</span>
+      <input type="range" id="sysVol" min="0" max="200" value="100" disabled>
+      <span id="sysVolState" style="width:52px;text-align:right;font-size:12px;color:#8a8a99;font-variant-numeric:tabular-nums">未共享</span>
+    </div>
+    <div class="speakerRow" id="speakerRow" style="display:none">
+      <span>🔊 喇叭</span>
+      <input type="range" id="volSlider" min="0" max="100" value="100">
+      <button id="spkBtn" class="ghost" style="padding:6px 12px;font-size:12px">静音对方</button>
+    </div>
+    <div id="stats" class="stats"></div>
+  </div>
+
+  <div id="chatCard" class="card">
+    <div style="font-size:13px;color:#8a8a99;margin-bottom:6px">文字消息</div>
+    <div id="chatList" class="chatlist"></div>
+    <div class="chatrow">
+      <select id="chatTarget"><option value="all">全体观众</option></select>
+      <input id="chatInput" placeholder="输入消息，回车发送" maxlength="500">
+      <button id="fileBtn" class="ghost" title="发文件给观众（直传七牛，不占服务器）">📎</button>
+      <input id="fileInput" type="file" style="display:none">
+    </div>
+  </div>
+    </aside>
+  </div>
+  <div class="tip" style="margin-top:20px">构建 __BUILD__ · screen-share-live</div>
+</div>
+
+<script>
+'use strict';
+const qs = new URLSearchParams(location.search);
+// 构建号（部署时注入），页面上可见，用于确认刷新到新版
+const FAKE = qs.has('fake');        // 测试模式：用假画面/假声音代替真实采集
+const AUTOSTART = qs.has('autostart');
+
+const $ = (id) => document.getElementById(id);
+const badge = $('stateBadge');
+
+// 邀请链接 ?code=XXXXXXXX：自动带入访客密码，对方点「开始共享」即可开播
+const invitedCode = qs.get('code');
+if (invitedCode) {
+  $('secretInput').value = invitedCode;
+  $('codeTip').textContent = '已从链接带入访客密码 ' + invitedCode + '，点「开始共享」即可开播。';
+  $('codeTip').style.display = 'block';
+} else if (localStorage.getItem('ssl_secret')) {
+  $('secretInput').value = localStorage.getItem('ssl_secret'); // 上次用过的密钥自动回填
+}
+
+let ws = null;
+let wsRetry = 0;
+let room = null, hostToken = null;
+let screenStream = null, micStream = null;
+let screenTrack = null, micTrack = null, sysAudioTrack = null;
+let mixCtx = null, micGainNode = null, sysGainNode = null; // 混音台：两条音轨各一道增益
+let micSendTrack = null, sysSendTrack = null; // 增益后的发送轨
+let camStream = null, camTrack = null, camOn = false, camSeen = false; // 主播自摄
+const viewerCamOn = new Set(); // 开了摄像头回传的观众
+const peers = new Map(); // vid -> RTCPeerConnection
+const pendingCandidates = new Map(); // vid -> [candidate] 观众 answer 未处理完前先到的候选（直接 add 会被拒并丢）
+function addRemoteCandidate(vid, cand) {
+  const pc = peers.get(vid);
+  if (pc && pc.remoteDescription) pc.addIceCandidate(cand).catch(() => {});
+  else {
+    const arr = pendingCandidates.get(vid) || [];
+    arr.push(cand);
+    pendingCandidates.set(vid, arr);
+  }
+}
+async function flushCandidates(vid) {
+  const pc = peers.get(vid);
+  if (!pc || !pc.remoteDescription) return;
+  const arr = pendingCandidates.get(vid) || [];
+  pendingCandidates.set(vid, []);
+  for (const c of arr) { try { await pc.addIceCandidate(c); } catch (_) {} }
+}
+let ICE = [{ urls: ['stun:stun.qq.com:3478', 'stun:stun.miwifi.com:3478'] }]; // 兜底；host-ok 后用服务器下发的
+
+// ---------- 画质模式 + 自动档位 ----------
+// 观众端实时上报帧率/丢包/延迟（qos），主播端自动在档位间升降（降快升慢防抖），多观众取最差档
+const qualityMode = 'video'; // 内容类型自适应已全包，不再需要手动模式
+const QUALITY = {
+  video: { hint: 'motion', degradation: 'maintain-framerate' },
+  doc:   { hint: 'detail', degradation: 'maintain-resolution' },
+};
+const LEVELS = {
+  // 档位只控「码率+帧率上限」；分辨率交给浏览器自适应（degradationPreference + QualityScaler），
+  // 带宽富余自动跑满 1080p，紧张时浏览器自己降，不人为定死
+  video: [
+    { name: '1080p60 拉满', maxBitrate: 8000000, maxFramerate: 60 },
+    { name: '1080p 满速',   maxBitrate: 5000000, maxFramerate: 30 },
+    { name: '中继顺滑',     maxBitrate: 4000000, maxFramerate: 60 },
+    { name: '中继稳',       maxBitrate: 2500000, maxFramerate: 30 },
+    { name: '保活',         maxBitrate: 1200000, maxFramerate: 20 },
+  ],
+  doc: [
+    { name: '1080p 清晰', maxBitrate: 2500000, maxFramerate: 15 },
+    { name: '1080p 省流', maxBitrate: 1500000, maxFramerate: 15 },
+    { name: '1080p 极省', maxBitrate: 1000000, maxFramerate: 12 },
+  ],
+};
+let lastDownTs = 0, lastUpTs = 0;
+const qosMap = new Map(); // vid -> { fps, kbps, loss, rtt, ts }
+const metaMap = new Map(); // vid -> { name, desc, did }
+const micStateMap = new Map(); // vid -> 观众自己是否闭麦
+const viewerLevel = new Map(); // vid -> 档位（每个观众独立自适应，互不拖累）
+const viewerVia = new Map(); // vid -> 'relay' | 'direct'
+let viaChanged = false;
+
+// 观众显示名：自取称呼 > 设备描述 > 随机代号
+function vidLabel(vid) {
+  const m = metaMap.get(vid);
+  if (m && m.name) return m.name;
+  if (m && m.desc) return m.desc;
+  return '观众 ' + vid.slice(0, 4);
+}
+
+// 中继观众最高只能到「中继顺滑」档（保护服务器出向带宽）；直连观众可冲拉满档
+function capFor(vid) {
+  return viewerVia.get(vid) === 'relay' ? 2 : 0;
+}
+
+function applySenderQuality(vid) {
+  const pc = peers.get(vid);
+  if (!pc || !screenTrack) return;
+  const q = QUALITY[qualityMode];
+  const levels = LEVELS[qualityMode];
+  const lvl = Math.min(Math.max(viewerLevel.get(vid) ?? 0, capFor(vid)), levels.length - 1);
+  viewerLevel.set(vid, lvl);
+  const L = levels[lvl];
+  const sender = pc.getSenders().find((s) => s.track === screenTrack);
+  if (!sender) return;
+  try {
+    const p = sender.getParameters();
+    p.encodings = p.encodings && p.encodings.length ? p.encodings : [{}];
+    p.encodings[0].maxBitrate = L.maxBitrate;
+    p.encodings[0].maxFramerate = L.maxFramerate;
+    p.encodings[0].degradationPreference = q.degradation;
+    p.encodings[0].scaleResolutionDownBy = 1.0; // 显式归一：分辨率交给浏览器自适应
+    sender.setParameters(p).catch(() => {});
+  } catch (_) {}
+}
+
+function applyQuality() {
+  const q = QUALITY[qualityMode];
+  if (!screenTrack) return;
+  screenTrack.contentHint = q.hint;
+  peers.forEach((_, vid) => applySenderQuality(vid));
+}
+
+// 决策器：每个观众按自己的 qos 独立升降档（网络差快速降，网络好观察 12 秒再升）
+setInterval(() => {
+  const now = Date.now();
+  qosMap.forEach((q, vid) => {
+    if (now - q.ts > 6000) return;
+    const pc = peers.get(vid);
+    if (!pc || pc.connectionState !== 'connected') return;
+    const levels = LEVELS[qualityMode];
+    const cap = capFor(vid);
+    let lvl = Math.min(Math.max(viewerLevel.get(vid) ?? 0, cap), levels.length - 1);
+    const badFps = lvl === 0 ? 26 : 14; // 拉满档的降档阈值更苛刻
+    const bad = (q.fps > 0 && q.fps < badFps) || (q.loss || 0) > 0.08 || (q.rtt || 0) > 400;
+    const good = lvl === 1
+      ? (q.fps >= 26 && (q.loss || 0) < 0.01 && (q.rtt || 0) < 120 && cap === 0) // 冲拉满：仅直连且指标优秀
+      : (q.fps > 22 && (q.loss || 0) < 0.02 && (q.rtt || 0) < 250);
+    let next = lvl;
+    if (lvl > cap) {
+      next = cap;
+    } else if (bad && lvl < levels.length - 1 && now - lastDownTs > 6000) {
+      next = lvl + 1; lastDownTs = now; lastUpTs = now;
+    } else if (good && lvl > cap && now - lastUpTs > 12000) {
+      next = lvl - 1; lastUpTs = now; lastDownTs = now;
+    }
+    if (next !== lvl) { viewerLevel.set(vid, next); applySenderQuality(vid); }
+  });
+}, 3000);
+
+function setTitle(s) { document.title = s; }
+function setBadge(text, on) {
+  badge.textContent = text;
+  badge.className = 'badge' + (on ? ' on' : '');
+}
+// 状态条单值更新：数值变化时高亮闪一下
+function setStat(id, val) {
+  const el = document.getElementById(id);
+  if (!el || el.textContent === String(val)) return;
+  el.textContent = String(val);
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 650);
+}
+
+// ---------- 测试用假源（?fake=1） ----------
+function fakeVideoStream(label) {
+  const c = document.createElement('canvas');
+  c.width = 1280; c.height = 720;
+  const ctx = c.getContext('2d');
+  const stream = c.captureStream(15);
+  let n = 0;
+  setInterval(() => {
+    n++;
+    ctx.fillStyle = ['#14202e', '#1e1430', '#301414'][n % 3];
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 72px monospace';
+    ctx.fillText((label || 'FAKE SCREEN ') + n, 120, 340);
+    ctx.font = '40px monospace';
+    ctx.fillText(new Date().toISOString().slice(11, 19) + '.' + String(Date.now() % 1000).padStart(3, '0'), 120, 420);
+  }, 66);
+  return stream;
+}
+function fakeAudioStream() {
+  const ac = new AudioContext();
+  if (ac.state === 'suspended') ac.resume();
+  const osc = ac.createOscillator();
+  osc.frequency.value = 440;
+  const dst = ac.createMediaStreamDestination();
+  osc.connect(dst);
+  osc.start();
+  return dst.stream;
+}
+
+// ---------- 开始 / 结束 ----------
+async function start() {
+  try {
+    const secret = $('secretInput').value.trim();
+    if (!secret) { setBadge('缺少密钥'); setTitle('H:err:no-secret'); return; }
+    localStorage.setItem('ssl_secret', secret);
+    $('secretCard').classList.remove('show');
+
+    if (FAKE) {
+      screenStream = fakeVideoStream();
+      micStream = fakeAudioStream();
+    } else {
+      setBadge('请选择屏幕…');
+      // audio:true：浏览器共享弹窗里若能共享系统声音，会多返回一条音轨
+      // （声音以数字方式直传对方，不经过麦克风 → 无回声不吵）
+      screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: { ideal: 60, max: 60 } },
+        audio: true,
+      });
+      setBadge('开启麦克风…');
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+    }
+
+    screenTrack = screenStream.getVideoTracks()[0];
+    screenTrack.contentHint = QUALITY[qualityMode].hint;
+    screenTrack.onended = () => stop(); // 用户在浏览器栏点了「停止共享」
+    micTrack = micStream.getAudioTracks()[0];
+    micMuted = false;
+    $('micBtn').textContent = '闭麦';
+    $('micBtn').classList.remove('muted');
+    // 系统声音轨：拿到就是「电脑声音直接共享」，拿不到则维持麦克风收音（可让对方闭麦避免回声）
+    sysAudioTrack = screenStream.getAudioTracks()[0] || null;
+    setBadge(sysAudioTrack ? '电脑声音已共享' : '电脑声音未共享（弹窗里没给音频）');
+
+    // 混音台：麦克风/系统声音各过一道增益再发送，推子实时调「送出去」的音量（观众端固定满音量）
+    if (!FAKE) {
+      try {
+        mixCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (mixCtx.state === 'suspended') await mixCtx.resume();
+        const micSrc = mixCtx.createMediaStreamSource(micStream);
+        micGainNode = mixCtx.createGain();
+        micGainNode.gain.value = $('micVol').value / 100;
+        const micDst = mixCtx.createMediaStreamDestination();
+        micSrc.connect(micGainNode).connect(micDst);
+        micSendTrack = micDst.stream.getAudioTracks()[0];
+        if (sysAudioTrack) {
+          const sysSrc = mixCtx.createMediaStreamSource(new MediaStream([sysAudioTrack]));
+          sysGainNode = mixCtx.createGain();
+          sysGainNode.gain.value = $('sysVol').value / 100;
+          const sysDst = mixCtx.createMediaStreamDestination();
+          sysSrc.connect(sysGainNode).connect(sysDst);
+          sysSendTrack = sysDst.stream.getAudioTracks()[0];
+        }
+      } catch (err) {
+        console.warn('混音台初始化失败，直发原始轨：', err.name, err.message);
+        micSendTrack = micTrack;
+        sysSendTrack = sysAudioTrack;
+      }
+    } else {
+      micSendTrack = micTrack;
+      sysSendTrack = sysAudioTrack;
+    }
+
+    $('preview').srcObject = screenStream;
+    $('preview').style.display = 'block';
+    $('liveStats').style.display = 'block';
+    attachMyMeter(micSendTrack || micTrack); // 电平条显示推子后的实际发送电平
+    $('micRow').style.display = 'flex';
+    $('micVolRow').style.display = 'flex';
+    $('sysVolRow').style.display = 'flex';
+    $('sysVol').disabled = !sysAudioTrack;
+    $('sysVolState').textContent = sysAudioTrack ? $('sysVol').value + '%' : '未共享';
+
+    connectSignaling(secret);
+    setBadge('连接中…');
+    $('startBtn').disabled = true;
+    $('stopBtn').disabled = false;
+    $('camBtn').disabled = false;
+  } catch (err) {
+    console.error(err);
+    setBadge('出错：' + (err.name || err.message));
+    setTitle('H:err:' + (err.name || err.message));
+  }
+}
+
+function stop() {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'bye' }));
+  peers.forEach((pc) => pc.close());
+  peers.clear();
+  [screenStream, micStream].forEach((s) => s && s.getTracks().forEach((tr) => tr.stop()));
+  screenStream = micStream = screenTrack = micTrack = sysAudioTrack = null;
+  if (mixCtx) { try { mixCtx.close(); } catch (_) {} }
+  mixCtx = micGainNode = sysGainNode = null;
+  micSendTrack = sysSendTrack = null;
+  $('micVolRow').style.display = 'none';
+  $('sysVolRow').style.display = 'none';
+  $('sysVol').disabled = true;
+  $('sysVolState').textContent = '未共享';
+  if (camOn) stopCam(true);
+  camSeen = false;
+  viewerCamOn.clear();
+  $('camBtn').disabled = true;
+  $('camsRow').classList.remove('show');
+  $('camsRow').innerHTML = '';
+  $('preview').srcObject = null;
+  $('preview').style.display = 'none';
+  $('linkCard').classList.remove('show');
+  $('viewersCard').classList.remove('show');
+  $('chatCard').classList.remove('show');
+  $('chatList').innerHTML = '';
+  while ($('chatTarget').options.length > 1) $('chatTarget').remove(1);
+  $('micRow').style.display = 'none';
+  $('speakerRow').style.display = 'none';
+  $('liveStats').style.display = 'none';
+  myMeterBuf = null;
+  perViewerMuted.clear();
+  $('stats').textContent = '';
+  $('startBtn').disabled = false;
+  $('stopBtn').disabled = true;
+  $('copyBtn').disabled = true;
+  setBadge('未开播');
+  setTitle('H:idle');
+  if (ws) { try { ws.close(); } catch (_) {} ws = null; }
+  room = null;
+  hostToken = null;
+}
+
+// ---------- 信令 ----------
+// 页面可能部署在子路径下（如 https://域名/live/host.html），WS 路径跟着页面 URL 走
+const BASE_PATH = location.pathname.replace(/\/[^/]*$/, ''); // '/live/' → '/live'，根部署则为 ''
+function connectSignaling(secret) {
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + BASE_PATH + '/ws');
+
+  ws.onopen = () => {
+    // 已开过播则走断线重连，保住已建立的连接
+    if (room && hostToken) ws.send(JSON.stringify({ t: 'host-resume', room, hostToken }));
+    else ws.send(JSON.stringify({ t: 'host-create', secret }));
+  };
+  ws.onmessage = (ev) => {
+    let m;
+    try { m = JSON.parse(ev.data); } catch (_) { return; }
+    switch (m.t) {
+      case 'host-ok':
+        wsRetry = 0; // 重连成功，退避归零
+        ICE = (m.ice && m.ice.length) ? m.ice : ICE;
+        if (!m.resumed) { room = m.room; hostToken = m.hostToken; }
+        showInvite();
+        setBadge('直播中', true);
+        setTitle('H:ok:r' + room);
+        break;
+      case 'view-joined':
+        metaMap.set(m.vid, m.meta || {});
+        addPeer(m.vid, m.meta);
+        break;
+      case 'view-left':   dropPeer(m.vid); break;
+      case 'signal':      onSignal(m.from, m.data); break;
+      case 'chat':
+        addChat(m.from === 'host' ? '主播' : vidLabel(m.from), m.text);
+        break;
+      case 'qos':
+        qosMap.set(m.from, { fps: m.fps, kbps: m.kbps, loss: m.loss, rtt: m.rtt, ts: Date.now() });
+        break;
+      case 'bye':         break; // 房间已销毁（如被重建）
+      case 'err':
+        setBadge('错误：' + m.msg);
+        setTitle('H:err:' + m.msg);
+        break;
+    }
+  };
+  ws.onclose = () => {
+    // 自动重连带退避（1.5s → 最多 5s）：30→90 秒内服务器都会保留房间，不用疯狂重试
+    if (room && hostToken) {
+      const delay = Math.min(5000, 1500 * ++wsRetry);
+      setTimeout(() => { if (screenTrack) connectSignaling(secret); }, delay);
+    }
+  };
+}
+
+function showInvite() {
+  const link = `${location.origin}${BASE_PATH}/viewer.html?r=${room}`;
+  $('inviteLink').textContent = link;
+  $('linkCard').classList.add('show');
+  $('viewersCard').classList.add('show');
+  $('chatCard').classList.add('show');
+  $('copyBtn').disabled = false;
+}
+
+// ---------- 文字聊天 ----------
+function addChat(who, text, mine) {
+  const list = $('chatList');
+  const d = document.createElement('div');
+  d.className = 'chatmsg' + (mine ? ' me' : '');
+  const b = document.createElement('b');
+  b.textContent = who + '：';
+  d.appendChild(b);
+  d.appendChild(document.createTextNode(text));
+  list.appendChild(d);
+  list.scrollTop = list.scrollHeight;
+}
+function sendChat() {
+  const inp = $('chatInput');
+  const text = inp.value.trim();
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ t: 'chat', to: $('chatTarget').value, text }));
+  addChat('我', text, true);
+  inp.value = '';
+}
+$('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+
+// ---------- 通话中发文件（浏览器直传七牛：服务器只发凭证，文件流不过服务器） ----------
+const fmtSize = (n) => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : n > 1024 ? (n / 1024).toFixed(1) + ' KB' : n + ' B';
+$('fileBtn').onclick = () => $('fileInput').click();
+$('fileInput').onchange = () => {
+  const f = $('fileInput').files[0];
+  $('fileInput').value = '';
+  if (f) sendFile(f);
+};
+
+async function sendFile(f) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { setBadge('连接断开，无法发送文件'); return; }
+  if (f.size > 500 * 1024 * 1024) { setBadge('文件超过 500MB 上限'); return; }
+  const msgId = 'fm-' + Math.random().toString(36).slice(2, 10);
+  addFileMsg(msgId, f.name, f.size, '准备上传…', '');
+  try {
+    // 1. 向服务器要上传凭证（几百字节，不含文件内容）
+    const tok = await new Promise((resolve, reject) => {
+      const h = (ev) => {
+        let m;
+        try { m = JSON.parse(ev.data); } catch (_) { return; }
+        if (m.t === 'file-token') { ws.removeEventListener('message', h); clearTimeout(timer); resolve(m); }
+        else if (m.t === 'err' && (m.msg === 'file-denied' || m.msg === 'file-too-large')) { ws.removeEventListener('message', h); clearTimeout(timer); reject(new Error(m.msg === 'file-too-large' ? '文件超限' : '无权发送')); }
+      };
+      const timer = setTimeout(() => { ws.removeEventListener('message', h); reject(new Error('凭证请求超时')); }, 15000);
+      ws.addEventListener('message', h);
+      ws.send(JSON.stringify({ t: 'file-token', name: f.name, size: f.size }));
+    });
+    // 2. 直传七牛（进度实时显示；文件不经过服务器）
+    await new Promise((resolve, reject) => {
+      const form = new FormData();
+      form.append('token', tok.token);
+      form.append('key', tok.key);
+      form.append('file', f);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', 'https://' + tok.upHost + '/');
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) updateFileMsg(msgId, '上传中 ' + Math.round((e.loaded / e.total) * 100) + '%');
+      };
+      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('上传被拒（' + xhr.status + '）')));
+      xhr.onerror = () => reject(new Error('网络错误'));
+      xhr.send(form);
+    });
+    // 3. 通知服务器登记并推给观众（等送达回执：0 = 直播已结束没送出去）
+    const ack = await new Promise((resolve) => {
+      const h = (ev) => {
+        let m;
+        try { m = JSON.parse(ev.data); } catch (_) { return; }
+        if (m.t === 'file-sent' && m.fileId === tok.fileId) { ws.removeEventListener('message', h); clearTimeout(timer); resolve(m); }
+      };
+      const timer = setTimeout(() => { ws.removeEventListener('message', h); resolve(null); }, 8000);
+      ws.addEventListener('message', h);
+      ws.send(JSON.stringify({ t: 'file-confirm', fileId: tok.fileId }));
+    });
+    if (!ack) updateFileMsg(msgId, '已上传 ✓');
+    else if (ack.delivered > 0) updateFileMsg(msgId, `已送达 ${ack.delivered} 位观众 ✓`);
+    else if (ack.noRoom) updateFileMsg(msgId, '已上传，但直播已结束，观众未收到', true);
+    else updateFileMsg(msgId, '已上传 ✓（暂无观众在线）');
+  } catch (err) {
+    updateFileMsg(msgId, '发送失败：' + err.message, true);
+  }
+}
+
+function addFileMsg(id, name, size, statusText, barId) {
+  const d = document.createElement('div');
+  d.className = 'chatmsg me';
+  d.id = id;
+  d.innerHTML = '<b>我：</b>';
+  const icon = document.createElement('span');
+  icon.textContent = '📎 ';
+  const nm = document.createElement('span');
+  nm.textContent = name;
+  const sz = document.createElement('span');
+  sz.className = 'fstat';
+  sz.textContent = ' (' + fmtSize(size) + ')';
+  const st = document.createElement('span');
+  st.className = 'fstat';
+  st.textContent = ' ' + statusText;
+  d.appendChild(icon); d.appendChild(nm); d.appendChild(sz); d.appendChild(st);
+  if (barId !== null) {
+    const bar = document.createElement('span');
+    bar.className = 'fbar';
+    bar.style.display = 'block';
+    bar.innerHTML = '<span class="fbarfill"></span>';
+    d.appendChild(bar);
+  }
+  $('chatList').appendChild(d);
+  $('chatList').scrollTop = $('chatList').scrollHeight;
+}
+function updateFileMsg(id, statusText, isErr) {
+  const d = document.getElementById(id);
+  if (!d) return;
+  const st = d.querySelectorAll('.fstat')[1];
+  if (st) {
+    st.textContent = ' ' + statusText;
+    st.className = 'fstat' + (isErr ? ' err' : (statusText.includes('✓') ? ' ok' : ''));
+  }
+  const bar = d.querySelector('.fbar');
+  if (bar) {
+    const pct = parseInt(statusText, 10);
+    bar.querySelector('.fbarfill').style.width = (isNaN(pct) ? 100 : pct) + '%';
+    if (isErr || statusText.includes('✓')) bar.style.display = 'none';
+  }
+}
+
+// ---------- PeerConnection ----------
+async function addPeer(vid) {
+  const pc = new RTCPeerConnection({ iceServers: ICE, bundlePolicy: 'max-bundle' });
+  peers.set(vid, pc);
+
+  pc.addTrack(screenTrack, screenStream);
+  pc.addTrack(micSendTrack || micTrack, micStream); // 混音台增益后的麦克风轨
+  if (sysAudioTrack) pc.addTrack(sysSendTrack || sysAudioTrack, screenStream); // 电脑声音直达对方（增益后）
+  // 观众摄像头回传占位：recvonly video m-line，观众开摄像头时 answer 里自动挂上
+  pc.addTransceiver('video', { direction: 'recvonly' });
+  if (camOn && camTrack) {
+    pc.addTrack(camTrack, camStream); // 主播摄像头开着，新观众直接带上
+    const cs = pc.getSenders().find((s) => s.track === camTrack);
+    if (cs) { cs.__isCam = true; setCamParams(cs); }
+  }
+
+  // 视频 H.264 优先（微信内置浏览器解码最稳）
+  const vTx = pc.getTransceivers().find((t) => t.sender.track === screenTrack);
+  if (vTx && window.RTCRtpSender) {
+    const caps = RTCRtpSender.getCapabilities('video');
+    const h264 = caps.codecs.filter((c) => /video\/h264/i.test(c.mimeType));
+    const others = caps.codecs.filter((c) => !/video\/h264/i.test(c.mimeType));
+    if (h264.length) { try { vTx.setCodecPreferences([...h264, ...others]); } catch (_) {} }
+    // 按该观众的档位设置编码参数（分辨率交给浏览器自适应）
+    try {
+      const q = QUALITY[qualityMode];
+      const L = LEVELS[qualityMode][Math.min(Math.max(viewerLevel.get(vid) ?? 0, capFor(vid)), LEVELS[qualityMode].length - 1)];
+      const p = vTx.sender.getParameters();
+      p.encodings = p.encodings && p.encodings.length ? p.encodings : [{}];
+      p.encodings[0].maxBitrate = L.maxBitrate;
+      p.encodings[0].maxFramerate = L.maxFramerate;
+      p.encodings[0].degradationPreference = q.degradation;
+      p.encodings[0].scaleResolutionDownBy = 1.0; // 显式归一，防旧值残留
+      await vTx.sender.setParameters(p);
+    } catch (_) {}
+  }
+
+  // 播放观众的声音（双向通话）；视频轨 = 观众摄像头回传
+  pc.ontrack = (e) => {
+    if (e.track.kind === 'video') {
+      camSeen = true;
+      viewerCamOn.add(vid);
+      renderViewerCam(vid, e.track);
+      return;
+    }
+    if (e.track.kind !== 'audio') return;
+    let a = document.getElementById('aud-' + vid);
+    if (!a) {
+      a = document.createElement('audio');
+      a.id = 'aud-' + vid;
+      a.autoplay = true;
+      document.body.appendChild(a);
+    }
+    a.srcObject = new MediaStream([e.track]);
+    a.volume = speakerVolume;
+    a.muted = speakerMuted;
+    a.play().catch((err) => console.warn('观众声音播放失败：', err.name, err.message));
+    viewerRowEl(vid);
+    $('speakerRow').style.display = 'flex';
+  };
+  pc.onicecandidate = (e) => {
+    if (e.candidate && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ t: 'signal', to: vid, data: { candidate: e.candidate.toJSON() } }));
+    }
+  };
+  pc.onconnectionstatechange = () => {
+    updateViewerList();
+    if (pc.connectionState === 'failed') {
+      try { pc.restartIce(); } catch (_) {}
+      // restartIce 只是标记，得主动发 iceRestart offer 才生效；2.5 秒后仍 failed 就主动重启该观众线路
+      setTimeout(() => { if (peers.get(vid) === pc && pc.connectionState === 'failed') restartPeer(vid); }, 2500);
+    }
+  };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ t: 'signal', to: vid, data: { sdp: pc.localDescription } }));
+    ws.send(JSON.stringify({ t: 'signal', to: vid, data: { control: 'host-cam', on: camOn } })); // 告知主播摄像头状态
+  }
+  updateViewerList();
+}
+
+function dropPeer(vid) {
+  const pc = peers.get(vid);
+  if (pc) pc.close();
+  peers.delete(vid);
+  pendingCandidates.delete(vid);
+  audioStat.delete(vid);
+  perViewerMuted.delete(vid);
+  qosMap.delete(vid);
+  metaMap.delete(vid);
+  micStateMap.delete(vid);
+  viewerLevel.delete(vid);
+  viewerVia.delete(vid);
+  const a = document.getElementById('aud-' + vid);
+  if (a) a.remove();
+  const box = document.getElementById('cbox-' + vid);
+  if (box) box.remove();
+  viewerCamOn.delete(vid);
+  const row = document.getElementById('row-' + vid);
+  if (row) row.remove();
+  const opt = document.getElementById('opt-' + vid);
+  if (opt) opt.remove();
+  if (!peers.size) $('speakerRow').style.display = 'none';
+  updateViewerList();
+}
+
+async function onSignal(from, data) {
+  const pc = peers.get(from);
+  if (data.control === 'mic-state') {
+    micStateMap.set(from, !!data.muted); // 观众自己闭麦/开麦，实时显示
+    return;
+  }
+  if (data.control === 'restart') {
+    restartPeer(from); // 观众网络切换/手动提速：重新打洞，中继可升级直连
+    return;
+  }
+  if (data.control === 'cam') {
+    if (data.on) {
+      viewerCamOn.add(from);
+      renegotiatePeer(from); // 重发 offer，观众 answer 里把预置的 recvonly video 挂上 TA 的轨
+    } else {
+      viewerCamOn.delete(from);
+      removeViewerCam(from);
+    }
+    return;
+  }
+  if (!pc) return;
+  if (data.sdp && data.sdp.type === 'answer') {
+    try { await pc.setRemoteDescription(data.sdp); } catch (err) { console.error('answer 处理失败', err); return; }
+    await flushCandidates(from);
+    // 观众摄像头补渲染：ontrack 只在轨首次挂上时触发一次，关了再开走 answer 更新不会再触发
+    // （不补的话，观众第二次开摄像头主播端小窗永远不显示）
+    if (viewerCamOn.has(from)) {
+      const recv = pc.getReceivers().find((r) => r.track && r.track.kind === 'video');
+      if (recv) renderViewerCam(from, recv.track);
+    }
+  } else if (data.candidate) {
+    addRemoteCandidate(from, data.candidate);
+  }
+}
+
+// 对指定观众做 ICE restart：重发 offer，重新收集候选（直连可达则自动升级线路）
+async function restartPeer(vid) {
+  const pc = peers.get(vid);
+  if (!pc || pc.signalingState !== 'stable') return;
+  try {
+    const offer = await pc.createOffer({ iceRestart: true });
+    await pc.setLocalDescription(offer);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ t: 'signal', to: vid, data: { sdp: pc.localDescription } }));
+    }
+  } catch (err) { console.error('线路重启失败', err); }
+}
+
+// 只重协商不重启 ICE（观众开摄像头、主播中途加轨时用）；协商中则稍后重试
+let renegotiateRetry = new Map(); // vid -> 次数
+async function renegotiatePeer(vid) {
+  const pc = peers.get(vid);
+  if (!pc) return;
+  if (pc.signalingState !== 'stable') {
+    const n = (renegotiateRetry.get(vid) || 0) + 1;
+    renegotiateRetry.set(vid, n);
+    if (n <= 10) setTimeout(() => renegotiatePeer(vid), 600);
+    return;
+  }
+  renegotiateRetry.delete(vid);
+  try {
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ t: 'signal', to: vid, data: { sdp: pc.localDescription } }));
+    }
+  } catch (err) { console.error('重协商失败', err); }
+}
+
+// ---------- 摄像头：主播自摄（480p 低带宽档）+ 观众回传小窗 ----------
+async function startCam() {
+  try {
+    if (!FAKE) {
+      camStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15, max: 15 } },
+      });
+    } else {
+      camStream = fakeVideoStream('FAKE CAM ');
+    }
+    camTrack = camStream.getVideoTracks()[0];
+    camTrack.contentHint = 'motion';
+    camOn = true;
+    $('camBtn').textContent = '📷 关摄像头';
+    $('camBtn').classList.add('active');
+    $('camSelf').srcObject = camStream;
+    $('camSelf').style.display = 'block';
+    setBadge('摄像头已开启（480p 低带宽档）');
+    for (const [vid, pcv] of peers) attachCamToPeer(vid, pcv);
+  } catch (err) {
+    console.error(err);
+    setBadge('摄像头开启失败：' + (err.name || err.message));
+  }
+}
+function stopCam(silent) {
+  camOn = false;
+  if (camStream) camStream.getTracks().forEach((t) => t.stop());
+  camStream = camTrack = null;
+  $('camBtn').textContent = '📷 摄像头';
+  $('camBtn').classList.remove('active');
+  $('camSelf').srcObject = null;
+  $('camSelf').style.display = 'none';
+  peers.forEach((pcv) => {
+    const sender = pcv.getSenders().find((s) => s.__isCam);
+    if (sender) sender.replaceTrack(null).catch(() => {});
+  });
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    peers.forEach((_, vid) => ws.send(JSON.stringify({ t: 'signal', to: vid, data: { control: 'host-cam', on: false } })));
+  }
+  if (!silent) setBadge('摄像头已关闭');
+}
+async function attachCamToPeer(vid, pcv) {
+  if (!camOn || !camTrack) return;
+  const old = pcv.getSenders().find((s) => s.__isCam);
+  if (old) { await old.replaceTrack(camTrack).catch(() => {}); }
+  else {
+    pcv.addTrack(camTrack, camStream);
+    const cs = pcv.getSenders().find((s) => s.track === camTrack);
+    if (cs) { cs.__isCam = true; setCamParams(cs); }
+    renegotiatePeer(vid);
+  }
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ t: 'signal', to: vid, data: { control: 'host-cam', on: true } }));
+  }
+}
+// 摄像头统一低档：省的是服务器出向带宽（中继观众），人像 480p15 够用
+function setCamParams(sender) {
+  try {
+    const p = sender.getParameters();
+    p.encodings = p.encodings && p.encodings.length ? p.encodings : [{}];
+    p.encodings[0].maxBitrate = 500000;
+    p.encodings[0].maxFramerate = 15;
+    p.encodings[0].degradationPreference = 'maintain-framerate';
+    sender.setParameters(p).catch(() => {});
+  } catch (_) {}
+}
+function renderViewerCam(vid, track) {
+  let box = document.getElementById('cbox-' + vid);
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'cbox-' + vid;
+    box.className = 'cambox';
+    const v = document.createElement('video');
+    v.id = 'vcam-' + vid;
+    v.muted = true; v.autoplay = true; v.playsInline = true;
+    v.srcObject = new MediaStream([track]);
+    v.play().catch(() => {});
+    const name = document.createElement('div');
+    name.className = 'camname';
+    name.textContent = vidLabel(vid) + ' 的摄像头';
+    box.appendChild(v);
+    box.appendChild(name);
+    $('camsRow').appendChild(box);
+    $('camsRow').classList.add('show');
+  }
+  box.style.display = 'block';
+}
+function removeViewerCam(vid) {
+  const box = document.getElementById('cbox-' + vid);
+  if (box) box.style.display = 'none';
+}
+$('camBtn').onclick = () => { camOn ? stopCam(false) : startCam(); };
+
+function updateViewerList() {
+  // 无观众时立即归零；有观众时的行内容与 title 由统计定时器刷新
+  if (!peers.size) {
+    $('viewerList').textContent = '暂无观众';
+    setTitle(room ? 'H:ok:r' + room : 'H:idle');
+  }
+}
+
+// 每个观众的固定行：标签 + 电平条 + 状态文字 + 操作按钮
+const perViewerMuted = new Set(); // 单独不听某观众的音
+function viewerRowEl(vid) {
+  let row = document.getElementById('row-' + vid);
+  if (!row) {
+    row = document.createElement('div');
+    row.id = 'row-' + vid;
+    row.className = 'vrow';
+    const label = document.createElement('span');
+    label.className = 'vlabel';
+    label.textContent = vidLabel(vid);
+    const bar = document.createElement('span');
+    bar.className = 'levelbar';
+    bar.innerHTML = '<span class="levelfill" id="lf-' + vid + '"></span>';
+    const state = document.createElement('span');
+    state.className = 'vstate';
+    state.id = 'vs-' + vid;
+    state.textContent = '连接中…';
+    const ops = document.createElement('span');
+    ops.className = 'vops';
+    const muteB = document.createElement('button');
+    muteB.className = 'opbtn';
+    muteB.textContent = '🔇';
+    muteB.title = '不听 TA 的声音';
+    muteB.onclick = () => {
+      if (perViewerMuted.has(vid)) perViewerMuted.delete(vid);
+      else perViewerMuted.add(vid);
+      muteB.classList.toggle('active', perViewerMuted.has(vid));
+      applySpeaker();
+      // 同步到观众端：真正闭他的麦 + 他那边显示「主播已将你静音」
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ t: 'signal', to: vid, data: { control: 'mic-muted', on: perViewerMuted.has(vid) } }));
+      }
+    };
+    const kickB = document.createElement('button');
+    kickB.className = 'opbtn danger';
+    kickB.textContent = '踢出';
+    kickB.title = '把 TA 移出直播间';
+    kickB.onclick = () => {
+      if (confirm('确定把「' + vidLabel(vid) + '」移出吗？')) {
+        if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'kick', vid }));
+      }
+    };
+    ops.appendChild(muteB);
+    ops.appendChild(kickB);
+    row.appendChild(label);
+    row.appendChild(bar);
+    row.appendChild(state);
+    row.appendChild(ops);
+    $('viewerList').appendChild(row);
+    // 聊天下拉里同步加 TA
+    const opt = document.createElement('option');
+    opt.value = vid;
+    opt.textContent = vidLabel(vid);
+    opt.id = 'opt-' + vid;
+    $('chatTarget').appendChild(opt);
+  }
+  return row;
+}
+
+// ---------- 我的麦克风：输入电平 + 闭麦 ----------
+let micMuted = false, myMeterBuf = null;
+function attachMyMeter(track) {
+  const ac = new (window.AudioContext || window.webkitAudioContext)();
+  if (ac.state === 'suspended') ac.resume();
+  const src = ac.createMediaStreamSource(new MediaStream([track]));
+  const an = ac.createAnalyser();
+  an.fftSize = 512;
+  src.connect(an); // 本地流可直接接 AnalyserNode，不影响推流
+  myMeterBuf = new Uint8Array(an.frequencyBinCount);
+  const timer = setInterval(() => {
+    if (!myMeterBuf || !screenTrack) { clearInterval(timer); $('myLevel').style.width = '0%'; return; }
+    an.getByteTimeDomainData(myMeterBuf);
+    let sum = 0;
+    for (let i = 0; i < myMeterBuf.length; i++) { const v = (myMeterBuf[i] - 128) / 128; sum += v * v; }
+    const rms = Math.sqrt(sum / myMeterBuf.length);
+    $('myLevel').style.width = Math.min(100, Math.round(rms * 250)) + '%';
+  }, 100);
+}
+$('micBtn').onclick = () => {
+  if (!micTrack) return;
+  micMuted = !micMuted;
+  micTrack.enabled = !micMuted;
+  $('micBtn').textContent = micMuted ? '开麦' : '闭麦';
+  $('micBtn').classList.toggle('muted', micMuted);
+  $('myLevel').style.opacity = micMuted ? '.3' : '1';
+};
+
+// ---------- 喇叭输出控制 ----------
+let speakerVolume = 1.0, speakerMuted = false;
+function applySpeaker() {
+  document.querySelectorAll('audio[id^="aud-"]').forEach((a) => {
+    a.volume = speakerVolume;
+    a.muted = speakerMuted || perViewerMuted.has(a.id.slice(4));
+  });
+}
+$('volSlider').oninput = (e) => { speakerVolume = e.target.value / 100; applySpeaker(); };
+// ---------- 混音台推子：只调主播端发送出去的音量（观众端零控件，对方用手机音量键） ----------
+$('micVol').oninput = (e) => {
+  $('micVolVal').textContent = e.target.value + '%';
+  if (micGainNode) micGainNode.gain.setTargetAtTime(e.target.value / 100, mixCtx.currentTime, 0.02);
+};
+$('sysVol').oninput = (e) => {
+  $('sysVolState').textContent = e.target.value + '%';
+  if (sysGainNode) sysGainNode.gain.setTargetAtTime(e.target.value / 100, mixCtx.currentTime, 0.02);
+};
+$('spkBtn').onclick = () => {
+  speakerMuted = !speakerMuted;
+  $('spkBtn').textContent = speakerMuted ? '开启喇叭' : '静音对方';
+  $('spkBtn').classList.toggle('muted', speakerMuted);
+  applySpeaker();
+};
+
+// ---------- 统计与观众状态（500ms：电平条流畅跳动的最小间隔） ----------
+let lastSent = 0, lastStatsTs = 0, audioSeen = false, lastEncTime = null;
+const audioStat = new Map(); // vid -> { bytes, ts, kbps }
+setInterval(async () => {
+  if (!peers.size) { $('stats').textContent = ''; lastStatsTs = 0; return; }
+  const now = Date.now();
+  let vidOut = 0, rtt = null, type = '', outFps = 0, capFps = 0, outH = 0, encTime = 0;
+  for (const [vid, pc] of peers) {
+    let aIn = 0, aLevel = -1;
+    try {
+      const stats = await pc.getStats();
+      stats.forEach((s) => {
+        if (s.type === 'media-source' && s.framesPerSecond) capFps = Math.round(s.framesPerSecond); // 屏幕采集实际帧率
+        if (s.type === 'outbound-rtp' && s.kind === 'video') {
+          vidOut += s.bytesSent;
+          if (s.framesPerSecond) outFps = Math.round(s.framesPerSecond);
+          if (s.frameHeight) outH = Math.max(outH, s.frameHeight); // 实际发送分辨率
+          encTime += s.totalEncodeTime || 0; // 编码器累计耗时（秒）
+        }
+        if (s.type === 'inbound-rtp' && s.kind === 'audio') {
+          aIn = s.bytesReceived;
+          if (typeof s.audioLevel === 'number') aLevel = s.audioLevel;
+        }
+        if (s.type === 'candidate-pair' && s.state === 'succeeded' && s.nominated && s.currentRoundTripTime != null) {
+          rtt = Math.round(s.currentRoundTripTime * 1000);
+          // 链路任一端是中继，全链路就是中继（另一端往往直连到中继服务器的公网地址）
+          const local = stats.get(s.localCandidateId);
+          const remote = stats.get(s.remoteCandidateId);
+          const types = [local && local.candidateType, remote && remote.candidateType];
+          if (types.some(Boolean)) {
+            const v = types.includes('relay') ? 'relay' : 'direct';
+            if (viewerVia.get(vid) !== v) { viewerVia.set(vid, v); viaChanged = true; }
+            type = v;
+          }
+        }
+      });
+    } catch (_) {}
+    const prev = audioStat.get(vid) || { bytes: aIn, ts: now, kbps: 0 };
+    if (now > prev.ts) prev.kbps = Math.max(0, Math.round((aIn - prev.bytes) * 8 / (now - prev.ts)));
+    prev.bytes = aIn;
+    prev.ts = now;
+    audioStat.set(vid, prev);
+    if (aIn > 500) audioSeen = true;
+    // 电平条 + 状态文字（「安静」=开着麦没说话；「已被你静音」=真被静音）
+    const lf = document.getElementById('lf-' + vid);
+    if (lf) lf.style.width = Math.min(100, Math.round(Math.max(0, aLevel) * 130)) + '%';
+    const vs = document.getElementById('vs-' + vid);
+    if (vs) {
+      const mutedByMe = perViewerMuted.has(vid);
+      const mutedSelf = micStateMap.get(vid) === true;
+      let voice;
+      if (mutedByMe) voice = '已被你静音';
+      else if (mutedSelf) voice = '他闭了麦';
+      else if (aIn === 0) voice = '声音: 未接入';
+      else if (prev.kbps <= 0) voice = '声音: 断流';
+      else if (aLevel > 0.01) voice = '正在说话';
+      else voice = '安静';
+      vs.textContent = `${pc.connectionState} · ${voice}`;
+      vs.style.color = pc.connectionState === 'failed' ? '#ff6b6b'
+        : mutedByMe ? '#f0b429'
+        : (aLevel > 0.01 ? '#6ee7a0' : (aIn === 0 ? '#d4a017' : '#8a8a99'));
+    }
+  }
+  setTitle('H:live:v' + peers.size + (audioSeen ? ':A' : '') + (camSeen ? ':C' : ''));
+  // 观众线路类型变化（中继/直连）时重新套用该观众的档位上限
+  if (viaChanged) {
+    viaChanged = false;
+    applyQuality();
+  }
+  if (lastStatsTs && now > lastStatsTs) {
+    const kbps = Math.max(0, Math.round((vidOut - lastSent) * 8 / (now - lastStatsTs)));
+    const cnt = { relay: 0, direct: 0 };
+    viewerVia.forEach((v) => { cnt[v] = (cnt[v] || 0) + 1; });
+    const viaTxt = (cnt.relay || cnt.direct)
+      ? `${cnt.direct ? '直连×' + cnt.direct : ''}${cnt.direct && cnt.relay ? ' + ' : ''}${cnt.relay ? '中继×' + cnt.relay : ''}`
+      : '—';
+    const h = outH >= 1000 ? '1080p' : outH >= 680 ? '720p' : outH >= 460 ? '540p' : (outH ? outH + 'p' : '-');
+    setStat('stRes', h);
+    setStat('stFps', (outFps || '-') + '');
+    setStat('stCap', (capFps || '-') + '');
+    setStat('stRate', (kbps / 8 / 1000).toFixed(2) + ' MB/s');
+    // 编码占用：Δ编码耗时 / Δ时间，反映压缩画面的真实开销（相对单核）
+    let encPct = '-';
+    if (lastEncTime != null && now > lastStatsTs) {
+      const dt = (now - lastStatsTs) / 1000;
+      if (dt > 0) encPct = Math.min(100, Math.max(0, Math.round((encTime - lastEncTime) / dt * 100))) + '%';
+    }
+    lastEncTime = encTime;
+    setStat('stEnc', encPct);
+    setStat('stRtt', (rtt ?? '-') + '');
+    const viaEl = document.getElementById('stVia');
+    if (viaEl) {
+      viaEl.textContent = viaTxt;
+      viaEl.className = viaTxt.includes('中继') ? 'warn' : viaTxt.includes('直连') ? 'good' : '';
+    }
+  }
+  lastSent = vidOut;
+  lastStatsTs = now;
+}, 500);
+
+// ---------- 绑定 ----------
+$('startBtn').onclick = start;
+$('stopBtn').onclick = stop;
+$('copyBtn').onclick = () => {
+  navigator.clipboard.writeText($('inviteLink').textContent).then(() => {
+    $('copyBtn').textContent = '已复制';
+    setTimeout(() => { $('copyBtn').textContent = '复制观众链接'; }, 1500);
+  });
+};
+$('saveSecretBtn').onclick = () => {
+  const s = $('secretInput').value.trim();
+  if (s) { localStorage.setItem('ssl_secret', s); $('secretCard').classList.remove('show'); }
+};
+const savedSecret = localStorage.getItem('ssl_secret');
+// 优先级：邀请链接 ?code= > URL ?secret= > localStorage——邀请码已在前面填入时不得被覆盖
+if (savedSecret && !$('secretInput').value) { $('secretInput').value = savedSecret; $('secretCard').classList.remove('show'); }
+// URL 带 secret 时（自动化测试/部署模板用）
+const urlSecret = qs.get('secret');
+if (urlSecret && !invitedCode) { $('secretInput').value = urlSecret; $('secretCard').classList.remove('show'); }
+
+if (AUTOSTART) {
+  start().then(() => { if (FAKE) setTimeout(() => { if (!camOn) startCam(); }, 800); });
+}
+</script>
+</body>
+</html>

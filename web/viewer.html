@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-build="__BUILD__">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>屏幕共享 · 观看</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: #000; color: #e8e8ee; font-family: -apple-system, "PingFang SC", sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+
+  #video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+
+  /* 顶部状态条：玻璃感，自动淡出 */
+  #topbar { position: fixed; top: calc(10px + env(safe-area-inset-top)); left: 12px; right: 12px;
+    display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px;
+    background: rgba(18,18,24,.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    font-size: 13px; z-index: 15; transition: opacity .35s; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #777; flex: none; }
+  .dot.on { background: #34d17b; box-shadow: 0 0 8px rgba(52,209,123,.8); }
+  .dot.wait { background: #f0b429; }
+  .dot.off { background: #e05252; }
+  #topStatus { font-weight: 600; }
+  #topMeta { margin-left: auto; color: #a9a9b8; font-size: 12px; font-family: ui-monospace, Menlo, monospace; }
+  /* 网络质量三档色：绿=正常 黄=注意 红=差 */
+  .good { color: #34d17b; }
+  .warn { color: #f0b429; }
+  .bad  { color: #ff6b6b; }
+
+  /* 底部控制条：四个大按钮均分 */
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 2px;
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); background: rgba(14,14,18,.82);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); transition: opacity .35s; z-index: 15; }
+  #bar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font: inherit; font-size: 11px; color: #cfcfda; background: none; border: 0; border-radius: 12px;
+    padding: 8px 0 6px; cursor: pointer; }
+  #bar button .ico { font-size: 21px; line-height: 1; }
+  #bar button.muted .ico { opacity: .45; }
+  #bar button.danger { color: #ff8484; }
+  #bar button.active { background: rgba(46,107,255,.28); }
+
+  /* 主播摄像头画中画（右下，点击与大画面互换）/ 自己摄像头预览（左下，可翻转） */
+  #pipHost { position: fixed; right: 12px; bottom: calc(96px + env(safe-area-inset-bottom)); width: 116px; aspect-ratio: 16/9; object-fit: cover; border-radius: 12px; border: 1.5px solid rgba(255,255,255,.35); background: #000; z-index: 16; display: none; cursor: pointer; }
+  #selfCamBox { position: fixed; left: 12px; bottom: calc(96px + env(safe-area-inset-bottom)); width: 116px; aspect-ratio: 16/9; z-index: 16; display: none; }
+  #pipSelf { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; border: 1.5px solid rgba(255,255,255,.35); background: #000; display: block; }
+  #flipBtn { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(0,0,0,.55); color: #fff; font-size: 14px; cursor: pointer; }
+
+  /* 主播发文件的弹窗 + 聊天里的文件卡片 */
+  #filePopup { position: fixed; top: 42%; left: 50%; transform: translate(-50%,-50%); width: min(86vw, 340px); background: rgba(18,18,24,.94); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,.14); border-radius: 18px; padding: 22px 20px calc(18px); z-index: 70; display: none; text-align: center; }
+  #filePopup.show { display: block; animation: dmin .25s ease-out; }
+  #filePopup .fico { font-size: 40px; }
+  #filePopup .fname { font-size: 15px; font-weight: 600; color: #fff; margin: 10px 0 4px; word-break: break-all; }
+  #filePopup .fsize { font-size: 12px; color: #8a8a99; }
+  #filePopup .frow { display: flex; gap: 10px; margin-top: 16px; }
+  #filePopup .frow button { flex: 1; font: inherit; font-size: 14px; padding: 11px 0; border-radius: 10px; border: 0; cursor: pointer; }
+  #fpDownload { background: #2e6bff; color: #fff; font-weight: 600; }
+  #fpLater { background: rgba(255,255,255,.1); color: #cfcfda; }
+  .chm .fdl { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; padding: 3px 12px; border-radius: 999px; background: rgba(46,107,255,.25); color: #9cc0ff; font-size: 12px; border: 0; cursor: pointer; }
+  #chatBtn.unread .ico::after { content: "•"; color: #ff8484; margin-left: 2px; }
+
+  /* 弹幕：左下角半透明小气泡，浮在画面上自动淡出（抖音直播式） */
+  #danmaku { position: fixed; left: 12px; bottom: 132px; display: flex; flex-direction: column; gap: 6px; z-index: 14; max-width: 78%; pointer-events: none; }
+  .dm { background: rgba(0,0,0,.55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); color: #fff; font-size: 15px; padding: 7px 11px; border-radius: 10px; line-height: 1.5; word-break: break-all; animation: dmin .25s ease-out; transition: opacity .7s; }
+  .dm b { color: #9cc0ff; font-weight: 600; }
+  @keyframes dmin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  /* 聊天浮层：透明底盖在画面上，历史可滚动，全屏时也能用 */
+  #chatOverlay { position: fixed; inset: 0; display: none; z-index: 55; background: rgba(0,0,0,.25); }
+  #chatOverlay.open { display: block; }
+  #coPanel { position: absolute; left: 0; right: 0; bottom: 0; max-height: 68%; background: rgba(14,14,18,.6); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border-radius: 18px 18px 0 0; display: flex; flex-direction: column; }
+  #coHead { display: flex; justify-content: space-between; align-items: center; padding: 13px 16px; font-size: 13px; color: #b9b9c6; border-bottom: 1px solid rgba(255,255,255,.08); }
+  #coClose { background: none; border: 0; color: #8a8a99; font-size: 18px; cursor: pointer; padding: 0 4px; }
+  #coList { flex: 1; overflow-y: auto; padding: 6px 16px 10px; -webkit-overflow-scrolling: touch; }
+  .chm { font-size: 15px; line-height: 1.6; color: #f0f0f5; padding: 5px 0; word-break: break-all; }
+  .chm b { color: #9cc0ff; font-weight: 600; }
+  .chm.me b { color: #6ee7a0; }
+  #coRow { display: flex; gap: 8px; padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(255,255,255,.08); }
+  #coInput { flex: 1; font: inherit; font-size: 15px; padding: 11px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08); color: #fff; }
+  #coSend { padding: 10px 20px; border-radius: 999px; }
+  body.pseudo-full #danmaku { opacity: 0; pointer-events: none; }
+
+  /* 状态条与按钮条 10 秒无操作自动隐藏（沉浸模式），点画面唤出 */
+  body.ui-hidden #topbar, body.ui-hidden #bar { opacity: 0; pointer-events: none; }
+  #toast { position: fixed; top: calc(60px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); background: rgba(18,18,24,.88); color: #fff; padding: 8px 16px; border-radius: 999px; font-size: 13px; opacity: 0; transition: opacity .3s; z-index: 60; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  /* 伪全屏：不支持原生 Fullscreen API 的环境（iOS 微信等）用页面级全屏替代 */
+  body.pseudo-full #topbar, body.pseudo-full #bar { opacity: 0; pointer-events: none; }
+  #video.pseudo-full { position: fixed; inset: 0; z-index: 50; background: #000; }
+
+  /* 黑屏兜底 */
+  #tapHint { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px; background: rgba(0,0,0,.55); z-index: 20; color: #fff; font-size: 16px; cursor: pointer; }
+  #tapHint .play { width: 84px; height: 84px; border-radius: 50%; background: rgba(255,255,255,.14); border: 2px solid rgba(255,255,255,.7); display: flex; align-items: center; justify-content: center; font-size: 34px; }
+
+  /* 加入前封面 */
+  #joinScreen { position: fixed; inset: 0; background: #101014; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; z-index: 25; padding: 0 24px; }
+  #joinScreen h2 { margin: 0; font-size: 20px; }
+  #joinScreen p { margin: 0; color: #8a8a99; font-size: 13px; text-align: center; line-height: 1.7; }
+  #joinBtn { font-size: 17px; padding: 14px 44px; border-radius: 12px; }
+
+  /* 聊天面板 */
+  #chatPanel { position: fixed; left: 0; right: 0; bottom: 0; max-height: 62%; background: #17171d; border-radius: 16px 16px 0 0; display: none; flex-direction: column; z-index: 30; box-shadow: 0 -8px 30px rgba(0,0,0,.5); }
+  #chatPanel.open { display: flex; }
+  #chatHead { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; font-size: 14px; color: #b9b9c6; border-bottom: 1px solid #26262e; }
+  #chatClose { background: none; border: 0; color: #8a8a99; font-size: 18px; cursor: pointer; padding: 0 4px; }
+  #chatList { flex: 1; overflow-y: auto; padding: 10px 16px; font-size: 14px; line-height: 1.8; color: #d8d8e2; min-height: 120px; }
+  .chatmsg b { color: #9cc0ff; font-weight: 600; }
+  .chatmsg.me b { color: #6ee7a0; }
+  #chatRow { display: flex; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid #26262e; }
+  #chatInput { flex: 1; font: inherit; font-size: 14px; padding: 10px 12px; border-radius: 10px; border: 1px solid #33333d; background: #1c1c23; color: #e8e8ee; }
+  #chatSend { padding: 10px 18px; border-radius: 10px; }
+</style>
+</head>
+<body>
+<video id="video" autoplay playsinline muted></video>
+
+<div id="topbar">
+  <span id="dot" class="dot off"></span><span id="topStatus">未连接</span>
+  <span id="topMeta"></span>
+</div>
+
+<div id="tapHint"><div class="play">▶</div><div>点一下开始播放</div></div>
+
+<div id="bar">
+  <button id="muteBtn"><span class="ico">🎙️</span><span>麦克风</span></button>
+  <button id="camBtn"><span class="ico">📷</span><span>摄像头</span></button>
+  <button id="chatBtn"><span class="ico">💬</span><span>聊天</span></button>
+  <button id="boostBtn"><span class="ico">🚀</span><span>提速</span></button>
+  <button id="fullBtn"><span class="ico">⛶</span><span>全屏</span></button>
+  <button id="hangBtn" class="danger"><span class="ico">✕</span><span>挂断</span></button>
+  <div id="ver" style="font-size:9px;color:#55555e;white-space:nowrap;align-self:center;writing-mode:vertical-rl"></div>
+</div>
+<div id="toast"></div>
+<div id="filePopup">
+  <div class="fico">📎</div>
+  <div class="fname" id="fpName"></div>
+  <div class="fsize" id="fpSize"></div>
+  <div class="frow">
+    <button id="fpLater">稍后</button>
+    <button id="fpDownload">⬇ 下载</button>
+  </div>
+</div>
+<video id="pipHost" muted autoplay playsinline></video>
+<div id="selfCamBox"><video id="pipSelf" muted autoplay playsinline></video><button id="flipBtn">🔄</button></div>
+
+<div id="danmaku"></div>
+<div id="chatOverlay">
+  <div id="coPanel">
+    <div id="coHead"><span id="coTitle">消息</span><button id="coClose">✕</button></div>
+    <div id="coList"></div>
+    <div id="coRow">
+      <input id="coInput" placeholder="说点什么…" maxlength="500" enterkeyhint="send">
+      <button id="coSend">发送</button>
+    </div>
+  </div>
+</div>
+
+<div id="joinScreen">
+  <h2>有人想给你看他的屏幕</h2>
+  <p>点下方按钮加入。加入后你能看到对方的屏幕，<br>并且可以开口对话（会用到你的麦克风）。</p>
+  <input id="nameInput" placeholder="你的称呼（对方会看到）" maxlength="12"
+    style="font:inherit;font-size:14px;padding:10px 14px;border-radius:999px;border:1px solid #33333d;background:#1c1c23;color:#e8e8ee;width:240px;text-align:center">
+  <button id="joinBtn">加入观看</button>
+  <div style="font-size:10px;color:#55555e" id="ver"></div>
+</div>
+
+<script>
+'use strict';
+const qs = new URLSearchParams(location.search);
+const room = qs.get('r');
+const FAKE = qs.has('fake');
+const AUTOSTART = qs.has('autostart');
+const RELAY = qs.has('relay'); // 测试模式：强制只走 TURN 中继
+
+const $ = (id) => document.getElementById(id);
+const video = $('video');
+
+let ws = null, pc = null;
+// 信令串行化：offer 必须按序处理。上一个 answer 没发完又来新 offer（开摄像头重协商 / 提速重打洞 / ICE restart 撞车）
+// 会让 setRemoteDescription 抛错且被静默吞掉 → 整条链路卡死。所有 offer 进队列串行处理。
+let offerChain = Promise.resolve();
+// ICE 候选缓冲：setRemoteDescription 完成前到达的候选直接 addIceCandidate 会被浏览器拒掉并丢失
+// （最先到的往往是直连最优路径）→ 接通慢、打洞成功率低、更容易掉到中继。先缓冲，线路就绪后再补。
+let pendingCandidates = [];
+let micTrack = null;
+let camStream = null, camTrack = null, camOn = false, camFacing = 'user', camSender = null;
+let screenSet = false, hostCamOn = true; // 顺序法：第一条 video m-line=屏幕，第二条=主播摄像头
+let screenRecvTrack = null, connectedAt = 0, firstFrameRestarted = false; // 首帧自愈用
+let iceServers = [{ urls: ['stun:stun.qq.com:3478', 'stun:stun.miwifi.com:3478'] }];
+let selfMuted = false;
+let mutedByHost = false; // 主播端把我静音时锁定本地麦克风
+
+$('ver').textContent = document.documentElement.dataset.build || '';
+
+// ---------- 状态展示 ----------
+function setTop(state, text) {
+  $('dot').className = 'dot ' + state;
+  $('topStatus').textContent = text;
+}
+function setStatus(s) { setTop(pc && pc.connectionState === 'connected' ? 'on' : 'wait', s); }
+function setTitle(s) { document.title = s; }
+
+// 点击画面唤出/隐藏界面（10 秒无操作自动隐藏，保沉浸感）
+let uiTimer = null;
+function wakeUI(auto) {
+  document.body.classList.remove('ui-hidden');
+  clearTimeout(uiTimer);
+  if (video.srcObject) uiTimer = setTimeout(() => document.body.classList.add('ui-hidden'), 10000);
+}
+video.addEventListener('click', () => wakeUI(false));
+// 自动播放兜底：任意触摸后补播画面与主播声音（观众端零音量控件，音量交给手机音量键）
+['touchend', 'click'].forEach((ev) => document.addEventListener(ev, () => {
+  if (video.paused && video.srcObject) video.play().catch(() => {});
+  document.querySelectorAll('audio[id^="hostAudio"]').forEach((a) => {
+    if (a.paused) a.play().catch(() => {});
+  });
+}, { passive: true }));
+// 首帧看门狗：线路已通但画面卡着不放 → 3 秒一补播；
+// 接通 6 秒仍收不到任何画面帧（轨一直静默）→ 自动重协商一次，等效自动「重进一次」
+setInterval(() => {
+  if (!pc || pc.connectionState !== 'connected') return;
+  if (video.srcObject && video.paused) video.play().catch(() => {});
+  document.querySelectorAll('audio[id^="hostAudio"]').forEach((a) => {
+    if (a.paused) a.play().catch(() => {});
+  });
+  if (screenSet && video.videoWidth === 0 && !firstFrameRestarted && connectedAt && Date.now() - connectedAt > 6000) {
+    firstFrameRestarted = true;
+    requestRestart('画面未能建立，正在自动重新协商…');
+  }
+}, 3000);
+
+if (!room) {
+  $('joinScreen').innerHTML = '<h2>链接不完整</h2><p>请让对方重新发送链接。</p>';
+}
+
+async function join() {
+  if (!room) return;
+  try {
+    if (!FAKE) {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('unsupported');
+      setStatus('申请麦克风…');
+      const mic = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      micTrack = mic.getAudioTracks()[0];
+    } else {
+      const ac = new AudioContext();
+      if (ac.state === 'suspended') await ac.resume();
+      const osc = ac.createOscillator();
+      osc.frequency.value = 660;
+      const dst = ac.createMediaStreamDestination();
+      osc.connect(dst);
+      osc.start();
+      micTrack = dst.stream.getAudioTracks()[0];
+    }
+
+    setStatus('连接中…');
+    const name = ($('nameInput').value || '').trim().slice(0, 12);
+    if (name) localStorage.setItem('ssl_dname', name);
+    ws = connectWS();
+    $('joinScreen').style.display = 'none';
+    wakeUI();
+  } catch (err) {
+    console.error(err);
+    setTitle('V:err:' + (err.name || err.message));
+    $('joinScreen').innerHTML = '<h2>无法加入</h2><p>' + (
+      err.name === 'NotAllowedError'
+        ? '没有拿到麦克风权限。请在微信右上角菜单里选「用浏览器打开」再试，或检查麦克风权限。'
+        : '当前环境不支持实时通话，请在微信右上角菜单里选「用浏览器打开」试试。'
+    ) + '</p>';
+  }
+}
+
+// 子路径部署时 WS 路径跟着页面 URL 走（如 /live/ws）
+function basePath() { return location.pathname.replace(/\/[^/]*$/, ''); }
+
+// ---------- 信令连接（含断线自动重连：网络切换后整体重建会话） ----------
+let intentionalClose = false; // 自己点挂断时不走自动重连
+let wsAttempts = 0;
+const MAX_WS_ATTEMPTS = 40;   // 约 2 分钟，超出才放弃并显示手动重试
+
+function connectWS() {
+  const socket = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + basePath() + '/ws');
+  socket.onopen = () => {
+    wsAttempts = 0;
+    socket.send(JSON.stringify({
+      t: 'view-join', room,
+      name: localStorage.getItem('ssl_dname') || '',
+      desc: deviceDesc(),
+      did: deviceId(),
+    }));
+  };
+  socket.onmessage = (ev) => { try { onMsg(JSON.parse(ev.data)); } catch (_) {} };
+  socket.onclose = () => {
+    if (intentionalClose || !room) return;
+    ws = null;
+    resetPC(); // 只清 PC，保留麦克风（重连后复用，不重新要权限）
+    setTop('wait', '网络切换，自动重连中…');
+    setStatus('自动重连中…');
+    setTitle('V:reconnect');
+    scheduleReconnect();
+  };
+  return socket;
+}
+
+function scheduleReconnect() {
+  wsAttempts++;
+  if (wsAttempts > MAX_WS_ATTEMPTS) {
+    $('joinScreen').style.display = 'flex';
+    $('joinScreen').innerHTML = '<h2>连接中断</h2><p>自动重连未成功（网络可能不稳定）。<br>请检查网络后重试。</p>' +
+      '<button id="retryBtn" style="font-size:16px;padding:12px 36px">重新连接</button>';
+    document.getElementById('retryBtn').onclick = () => location.reload();
+    setTop('off', '连接中断');
+    return;
+  }
+  const delay = Math.min(5000, 800 * wsAttempts);
+  setTimeout(() => {
+    if (ws || intentionalClose) return;
+    try {
+      ws = connectWS();
+    } catch (_) { scheduleReconnect(); }
+  }, delay);
+}
+
+// 设备描述：从 UA 解析机型（iOS 不给具体型号，安卓常能给出型号名）
+function deviceDesc() {
+  const ua = navigator.userAgent;
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad/.test(ua)) return 'iPad';
+  let m = ua.match(/Android[^;)]*;\s*([^;)]+?)\s+Build\//);
+  if (m) return m[1].trim();
+  m = ua.match(/Android[^;)]*;\s*([^;)]+?)\s*\)/);
+  if (m && m[1].trim() && m[1].indexOf('wv') !== 0) return m[1].trim();
+  if (/Android/.test(ua)) return 'Android 手机';
+  if (/Macintosh/.test(ua)) return 'Mac 电脑';
+  if (/Windows/.test(ua)) return 'Windows 电脑';
+  return '未知设备';
+}
+// 设备 ID：同一台手机无论点哪个链接都认得出（存在手机本地）
+function deviceId() {
+  let d = localStorage.getItem('ssl_did');
+  if (!d) { d = Math.random().toString(36).slice(2, 12); localStorage.setItem('ssl_did', d); }
+  return d;
+}
+// 预填上次用过的称呼
+const savedName = localStorage.getItem('ssl_dname');
+if (savedName) $('nameInput').value = savedName;
+
+function onMsg(m) {
+  switch (m.t) {
+    case 'view-ok':
+      if (m.ice && m.ice.length) iceServers = m.ice;
+      setStatus('等待主播…');
+      break;
+    case 'signal': handleSignal(m.data); break;
+    case 'host-offline': setStatus('主播暂时掉线，等待恢复…'); break;
+    case 'chat': {
+      const who = m.from === 'host' ? '主播' : '观众 ' + m.from.slice(0, 4);
+      addChat(who, m.text, false, m.file || null);
+      if (m.file) showFilePopup(m.file);
+      if (!$('chatOverlay').classList.contains('open')) {
+        unread++;
+        $('chatBtn').classList.add('unread');
+        $('chatBtn').querySelector('span:last-child').textContent = '聊天(' + unread + ')';
+      }
+      break;
+    }
+    case 'bye':
+      cleanup();
+      $('joinScreen').style.display = 'flex';
+      $('joinScreen').innerHTML = m.reason === 'kicked'
+        ? '<h2>你已被主播移出</h2><p>本次直播无法继续观看。</p>'
+        : '<h2>直播已结束</h2><p>对方已挂断，链接已失效。</p>';
+      setTop('off', '直播已结束');
+      setTitle('V:ended');
+      break;
+    case 'err':
+      setStatus('错误：' + m.msg);
+      if (m.msg === 'no-room') {
+        $('joinScreen').style.display = 'flex';
+        $('joinScreen').innerHTML = '<h2>直播不在线</h2><p>对方还没开播，或链接已失效。</p>';
+        setTitle('V:noroom');
+      } else if (m.msg === 'room-full') {
+        $('joinScreen').style.display = 'flex';
+        $('joinScreen').innerHTML = '<h2>观众已满</h2><p>当前观看人数已达上限，请稍后再试。</p>';
+        setTitle('V:full');
+      }
+      break;
+  }
+}
+
+// 创建/复用观众端 PC（线路优化时会重协商，必须复用而不是重建）
+function ensureViewerPC() {
+  if (pc && pc.signalingState !== 'closed') return pc;
+  pc = new RTCPeerConnection({
+    iceServers,
+    ...(RELAY ? { iceTransportPolicy: 'relay' } : {}),
+  });
+  pc.ontrack = (e) => {
+    if (e.track.kind === 'video') {
+      // 顺序法识别：协商顺序固定，第一条 video 是屏幕，第二条是主播摄像头
+      if (!screenSet) {
+        screenSet = true;
+        screenRecvTrack = e.track;
+        video.srcObject = new MediaStream([e.track]);
+        // iOS/微信内核已知坑：轨从静默变活（线路打通）时不自动出帧，必须补 play
+        e.track.addEventListener('unmute', () => video.play().catch(() => {}));
+        video.play().catch((err) => console.warn('视频自动播放被拦：', err.name, err.message));
+      } else {
+        const p = document.getElementById('pipHost');
+        p.srcObject = new MediaStream([e.track]);
+        p.style.display = hostCamOn ? 'block' : 'none';
+        e.track.addEventListener('unmute', () => p.play().catch(() => {}));
+        p.play().catch((err) => console.warn('画中画自动播放被拦：', err.name, err.message));
+      }
+      wakeUI();
+    } else {
+      // 主播可能有多条音轨（麦克风+系统声音）：每条轨独立 <audio> 元素播放
+      // （不能共用一个元素后者覆盖前者；也不能聚合进单元素——iOS WebKit 只渲染第一条轨）
+      let a = document.getElementById('hostAudio-' + e.track.id);
+      if (!a) {
+        a = document.createElement('audio');
+        a.id = 'hostAudio-' + e.track.id;
+        a.autoplay = true;
+        a.srcObject = new MediaStream([e.track]);
+        document.body.appendChild(a);
+      }
+      a.play().catch((err) => console.warn('主播声音自动播放被拦：', err.name, err.message));
+    }
+  };
+  pc.onicecandidate = (e) => {
+    if (e.candidate && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ t: 'signal', data: { candidate: e.candidate.toJSON() } }));
+    }
+  };
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'connected') {
+      failedRestarts = 0;
+      connectedAt = Date.now();
+      setTop('on', mutedByHost ? '已连接 · 主播已将你静音' : '已连接 · 双向通话中');
+      setTitle('V:connected');
+      wakeUI();
+      sendMicState(); // 接通即报一次当前麦克风状态
+      // 线路重建后主动「推」一下音视频，避免流恢复但播放器没跟上的静音
+      document.querySelectorAll('audio[id^="hostAudio"]').forEach((a) => a.play().catch(() => {}));
+      video.play().catch(() => {});
+    } else if (pc.connectionState === 'checking') {
+      setStatus('正在接通线路…');
+    } else if (pc.connectionState === 'disconnected') {
+      setStatus('线路波动，正在恢复…');
+    } else {
+      setStatus('线路：' + pc.connectionState);
+    }
+    if (pc.connectionState === 'failed') autoRecover();
+  };
+  return pc;
+}
+
+// ---------- 断线分层自救：ICE restart 两次 → 不行走信令整体重连 ----------
+let failedRestarts = 0;
+function autoRecover() {
+  if (intentionalClose) return;
+  if (failedRestarts < 2) {
+    failedRestarts++;
+    setTop('wait', '线路中断，自动恢复中…');
+    setStatus('自动恢复中…');
+    setTimeout(() => requestRestart('线路中断，正在自动恢复…'), 800);
+  } else if (ws && ws.readyState === WebSocket.OPEN) {
+    // ICE restart 救不回来（网络已大变）：断开信令，走整体重连重建会话
+    try { ws.close(); } catch (_) {}
+    ws = null;
+  }
+  // ws 也不通时 onclose 已进入重连循环；两分钟彻底失败才显示手动重试
+}
+
+// 请求主播重启线路：网络切换后中继可升级为直连
+let lastBoostTs = 0;
+function requestRestart(why) {
+  if (!pc || !ws || ws.readyState !== WebSocket.OPEN) return;
+  try {
+    ws.send(JSON.stringify({ t: 'signal', data: { control: 'restart' } }));
+    lastBoostTs = Date.now();
+    showToast(why || '正在优化线路…');
+  } catch (_) {}
+}
+// iPhone 拿不到网络切换事件（connection API 不支持），用两组替代信号：
+// ① 系统网络恢复事件  ② 回到页面（切完网必然回来看画面）——距上次优化超 60 秒就自动重打洞
+window.addEventListener('online', () => {
+  if (pc && pc.connectionState === 'connected') requestRestart('网络已恢复，正在优化线路…');
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && pc && pc.connectionState === 'connected') {
+    if (lastKnownVia === '中继' && Date.now() - lastBoostTs > 60000) {
+      requestRestart('回到页面，正在优化线路…');
+    }
+  }
+});
+
+// 麦克风轨道自愈：死轨重新采集（后台异步，绝不阻塞画面协商）
+async function ensureMic() {
+  if (micTrack && micTrack.readyState === 'live') return micTrack;
+  micTrack = null;
+  if (FAKE || !navigator.mediaDevices) return null;
+  try {
+    setStatus('恢复麦克风…');
+    const mic = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    micTrack = mic.getAudioTracks()[0];
+    micTrack.enabled = !(selfMuted || mutedByHost);
+    setTimeout(() => {
+      if (pc && pc.connectionState === 'connected') {
+        setTop('on', mutedByHost ? '已连接 · 主播已将你静音' : `已连接 · 麦克风${selfMuted ? '已闭麦' : '已开启'}`);
+      }
+    }, 1200);
+    return micTrack;
+  } catch (_) {
+    return null;
+  }
+}
+
+function addRemoteCandidate(cand) {
+  if (pc && pc.remoteDescription) pc.addIceCandidate(cand).catch(() => {});
+  else pendingCandidates.push(cand);
+}
+async function flushCandidates() {
+  if (!pc || !pc.remoteDescription || !pendingCandidates.length) return;
+  const list = pendingCandidates;
+  pendingCandidates = [];
+  for (const c of list) { try { await pc.addIceCandidate(c); } catch (_) {} }
+}
+function handleSignal(data) {
+  if (data.sdp && data.sdp.type === 'offer') {
+    offerChain = offerChain.then(() => processOffer(data.sdp)).catch((err) => console.error('offer 处理失败', err));
+  } else if (data.candidate) {
+    addRemoteCandidate(data.candidate);
+  } else if (data.control === 'restart') {
+    // 主播重启了线路（重协商 offer 会走上面 offer 分支）
+  } else if (data.control === 'host-cam') {
+    // 主播开了/关了摄像头：PIP 显隐（track 内容由 replaceTrack 自动更替）
+    hostCamOn = !!data.on;
+    const p = document.getElementById('pipHost');
+    if (p && p.srcObject) p.style.display = hostCamOn ? 'block' : 'none';
+  } else if (data.control === 'mic-muted') {
+    // 主播端静音/恢复我的麦克风
+    mutedByHost = !!data.on;
+    if (micTrack) micTrack.enabled = !mutedByHost;
+    selfMuted = mutedByHost;
+    $('muteBtn').classList.toggle('muted', selfMuted);
+    $('muteBtn').querySelector('.ico').textContent = selfMuted ? '🔇' : '🎙️';
+    if (pc && pc.connectionState === 'connected') {
+      setTop('on', mutedByHost ? '已连接 · 主播已将你静音' : '已连接 · 麦克风已开启');
+    }
+    showToast(mutedByHost ? '主播已将你静音' : '主播恢复了你的麦克风');
+    setTimeout(sendMicState, 100); // 把恢复后的真实状态报回去
+  }
+}
+
+async function processOffer(sdp) {
+  const target = ensureViewerPC();
+  await target.setRemoteDescription(sdp);
+  await flushCandidates();
+  // 轨道活着 → 同步挂上（answer 必须带上音轨）；轨道死了 → 先发 answer 保画面，后台恢复后再补挂
+    if (micTrack && micTrack.readyState !== 'live') micTrack = null;
+    if (!micTrack && !FAKE && navigator.mediaDevices) {
+      ensureMic().then((track) => {
+        if (!track) return;
+        const audioSender = target.getSenders().find((s) => !s.track || s.track.kind === 'audio');
+        if (audioSender) {
+          audioSender.replaceTrack(track).catch(() => { try { target.addTrack(track, new MediaStream([track])); } catch (_) {} });
+        } else {
+          target.addTrack(track, new MediaStream([track]));
+        }
+        sendMicState();
+      }).catch(() => {});
+    } else if (micTrack) {
+      if (!target.getSenders().some((s) => s.track)) {
+        target.addTrack(micTrack, new MediaStream([micTrack]));
+      } else {
+        const audioSender = target.getSenders().find((s) => s.track && s.track.kind === 'audio');
+        if (audioSender && audioSender.track !== micTrack) {
+          try { await audioSender.replaceTrack(micTrack); } catch (_) {}
+        }
+      }
+    }
+    // 摄像头：开着就挂上（answer 自动配对主播预置的 recvonly video m-line，升为 sendonly）
+    if (camOn && camTrack && camTrack.readyState === 'live') {
+      const cs = target.getSenders().find((s) => s.__isCam);
+      if (!cs) {
+        target.addTrack(camTrack, camStream);
+        camSender = target.getSenders().find((s) => s.track === camTrack) || null;
+        if (camSender) { camSender.__isCam = true; setCamParams(camSender); }
+      } else {
+        if (cs.track !== camTrack) await cs.replaceTrack(camTrack).catch(() => {});
+        camSender = cs;
+      }
+    } else if (camSender && !camOn) {
+      await camSender.replaceTrack(null).catch(() => {});
+    }
+  const answer = await target.createAnswer();
+  await target.setLocalDescription(answer);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ t: 'signal', data: { sdp: target.localDescription } }));
+  }
+}
+
+// 只重置媒体链路（自动重连用：保留麦克风轨道，不重新要权限）
+function resetPC() {
+  if (pc) pc.close();
+  pc = null;
+  camSender = null;
+  pendingCandidates = [];
+  offerChain = Promise.resolve();
+  screenSet = false;
+  screenRecvTrack = null;
+  connectedAt = 0;
+  firstFrameRestarted = false;
+  video.srcObject = null;
+  document.querySelectorAll('audio[id^="hostAudio"]').forEach((a) => a.remove());
+  const p = document.getElementById('pipHost');
+  if (p) { p.srcObject = null; p.style.display = 'none'; }
+}
+function cleanup() {
+  resetPC();
+  if (micTrack) { micTrack.stop(); micTrack = null; }
+  if (camStream) camStream.getTracks().forEach((t) => t.stop());
+  camStream = camTrack = null;
+  camOn = false; camSender = null; screenSet = false;
+  const box = document.getElementById('selfCamBox');
+  if (box) { box.style.display = 'none'; $('pipSelf').srcObject = null; }
+  const cb = document.getElementById('camBtn');
+  if (cb) cb.classList.remove('active');
+}
+
+// 线路诊断：连接失败时把自己的候选类型逐条亮出来，一眼看出中继有没有参与
+async function showDiag() {
+  if (!pc) return;
+  const lines = [];
+  try {
+    const stats = await pc.getStats();
+    stats.forEach((s) => {
+      if (s.type === 'local-candidate') {
+        lines.push(`${s.candidateType} · ${s.protocol || 'udp'} · ${s.address || s.ip || '?'}`);
+      }
+    });
+  } catch (_) {}
+  const body = lines.length ? lines.join('<br>') : '没有任何候选线路（ICE 配置未生效）';
+  $('joinScreen').style.display = 'flex';
+  $('joinScreen').innerHTML = '<h2>线路连接失败</h2>' +
+    `<p style="font-family:ui-monospace,monospace;font-size:12px;text-align:left;line-height:1.9">我的线路候选：<br>${body}</p>` +
+    '<p>请把这个画面截图发给主播。</p>';
+  setTop('off', '线路连接失败');
+  setTitle('V:diag');
+}
+
+// ---------- 控件 ----------
+$('joinBtn').onclick = join;
+// 把自己的麦克风状态上报给主播（他那边实时显示「他闭了麦/正在说话」）
+function sendMicState() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ t: 'signal', data: { control: 'mic-state', muted: selfMuted } }));
+  }
+}
+$('muteBtn').onclick = () => {
+  if (mutedByHost) { showToast('主播已将你静音，需要主播恢复'); return; }
+  selfMuted = !selfMuted;
+  if (micTrack) micTrack.enabled = !selfMuted;
+  $('muteBtn').classList.toggle('muted', selfMuted);
+  $('muteBtn').querySelector('.ico').textContent = selfMuted ? '🔇' : '🎙️';
+  if (pc && pc.connectionState === 'connected') {
+    setTop('on', `已连接 · 麦克风${selfMuted ? '已闭麦' : '已开启'}`);
+  }
+  sendMicState();
+};
+// ---------- 摄像头：手动开，480p 低带宽推给主播；前后摄可翻转 ----------
+async function startCam() {
+  if (camOn) return;
+  // 微信内置浏览器（尤其 iOS）常完全没有 getUserMedia：给出明确指引而不是笼统的「开启失败」
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('当前环境开不了摄像头：请点右上角菜单「在浏览器中打开」');
+    setTitle('V:err:cam-noapi');
+    return;
+  }
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: camFacing, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15, max: 15 } },
+      audio: false,
+    });
+    camTrack = camStream.getVideoTracks()[0];
+    camTrack.contentHint = 'motion';
+    camOn = true;
+    $('camBtn').classList.add('active');
+    $('selfCamBox').style.display = 'block';
+    $('pipSelf').srcObject = camStream;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ t: 'signal', data: { control: 'cam', on: true } }));
+    }
+  } catch (err) {
+    console.error(err);
+    showToast(err.name === 'NotAllowedError' ? '没有摄像头权限，请在微信设置里允许后重试' : '摄像头开启失败');
+    setTitle('V:err:cam-' + (err.name || 'fail'));
+  }
+}
+function stopCam() {
+  if (!camOn) return;
+  camOn = false;
+  $('camBtn').classList.remove('active');
+  $('selfCamBox').style.display = 'none';
+  if (camSender) camSender.replaceTrack(null).catch(() => {});
+  if (camStream) camStream.getTracks().forEach((t) => t.stop());
+  camStream = camTrack = null;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ t: 'signal', data: { control: 'cam', on: false } }));
+  }
+}
+// 翻转前后摄：采集新轨替换进同一 sender，零重协商
+$('flipBtn').onclick = async (e) => {
+  e.stopPropagation();
+  if (!camOn) return;
+  const next = camFacing === 'user' ? 'environment' : 'user';
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: next, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15, max: 15 } },
+      audio: false,
+    });
+    const t = s.getVideoTracks()[0];
+    const old = camStream;
+    camStream = s; camTrack = t; camFacing = next;
+    $('pipSelf').srcObject = s;
+    if (camSender) await camSender.replaceTrack(t).catch(() => {});
+    if (old) old.getTracks().forEach((x) => x.stop());
+  } catch (_) { showToast('切换摄像头失败'); }
+};
+// 摄像头发送统一低档（手机上行为省电省流量）
+function setCamParams(sender) {
+  try {
+    const p = sender.getParameters();
+    p.encodings = p.encodings && p.encodings.length ? p.encodings : [{}];
+    p.encodings[0].maxBitrate = 500000;
+    p.encodings[0].maxFramerate = 15;
+    p.encodings[0].degradationPreference = 'maintain-framerate';
+    sender.setParameters(p).catch(() => {});
+  } catch (_) {}
+}
+$('camBtn').onclick = () => { camOn ? stopCam() : startCam(); };
+// 主播摄像头 PIP 点击：与大画面互换（轻量 srcObject 交换，零重协商）
+$('pipHost').onclick = () => {
+  const p = $('pipHost');
+  if (!p.srcObject || !video.srcObject) return;
+  const t = video.srcObject;
+  video.srcObject = p.srcObject;
+  p.srcObject = t;
+  video.play().catch(() => {});
+  p.play().catch(() => {});
+};
+// ---------- 全屏：三级降级，保证「点了必有反应」 ----------
+let toastTimer = null;
+function showToast(t) {
+  const el = $('toast');
+  el.textContent = t;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+function togglePseudoFull() {
+  const on = video.classList.toggle('pseudo-full');
+  document.body.classList.toggle('pseudo-full', on);
+  $('fullBtn').querySelector('span:last-child').textContent = on ? '退出' : '全屏';
+  if (on) showToast('已进入全屏模式，点一下画面退出');
+}
+// iPhone 专有：调起系统级全屏播放器（真正的全屏，可旋转）
+function tryIOSFull() {
+  if (typeof video.webkitEnterFullscreen === 'function') {
+    try {
+      video.webkitEnterFullscreen();
+      showToast('已进入系统全屏，点「完成」返回');
+    } catch (_) { togglePseudoFull(); }
+  } else {
+    togglePseudoFull();
+  }
+}
+$('fullBtn').onclick = () => {
+  try {
+    if (document.fullscreenElement) { document.exitFullscreen(); return; }
+    if (document.body.classList.contains('pseudo-full')) { togglePseudoFull(); return; }
+    if (video.requestFullscreen) { video.requestFullscreen().catch(() => tryIOSFull()); return; }
+    tryIOSFull();
+  } catch (_) { tryIOSFull(); }
+};
+video.addEventListener('click', () => {
+  if (document.body.classList.contains('pseudo-full')) togglePseudoFull();
+});
+// iOS 系统播放器退出后：自动恢复播放与界面（否则会停在暂停态像「回不去」）
+video.addEventListener('webkitendfullscreen', () => {
+  wakeUI();
+  video.play().catch(() => {});
+});
+video.addEventListener('pause', () => {
+  if (pc && pc.connectionState === 'connected' && !selfMutedOnlyPause()) {
+    setTimeout(() => video.play().catch(() => {}), 400);
+  }
+});
+function selfMutedOnlyPause() { return false; }
+$('hangBtn').onclick = () => {
+  intentionalClose = true;
+  try { if (ws) ws.send(JSON.stringify({ t: 'bye' })); } catch (_) {}
+  try { if (ws) ws.close(); } catch (_) {}
+  cleanup();
+  location.reload();
+};
+
+// ---------- 线路优化：网络切换自动触发 + 手动提速 + 中继卡了自动兜底 ----------
+$('boostBtn').onclick = () => {
+  if (!pc) return;
+  requestRestart('正在重新打洞，优化线路…');
+};
+// 安卓/部分内核支持网络变化事件：切 WiFi 立刻重打洞升级直连
+if (navigator.connection && navigator.connection.addEventListener) {
+  navigator.connection.addEventListener('change', () => {
+    if (pc && pc.connectionState === 'connected') {
+      requestRestart('检测到网络切换，正在优化线路…');
+    }
+  });
+}
+// iOS 拿不到网络事件：中继且体验差持续 30 秒 → 自动尝试一次（最多两次）
+let poorSince = 0, autoBoostCount = 0;
+
+// ---------- 文字聊天（弹幕飘字 + 透明历史浮层） ----------
+let unread = 0;
+// 历史存手机本地：退出/刷新/下次直播都还在（最多留 150 条）
+let chatHistory = [];
+try { chatHistory = JSON.parse(localStorage.getItem('ssl_chatlog') || '[]'); } catch (_) { chatHistory = []; }
+function persistChat() {
+  try { localStorage.setItem('ssl_chatlog', JSON.stringify(chatHistory.slice(-150))); } catch (_) {}
+}
+const fmtSize = (n) => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : n > 1024 ? (n / 1024).toFixed(1) + ' KB' : n + ' B';
+const dlUrl = (fileId) => location.origin + basePath() + '/dl/' + fileId;
+
+function addChat(who, text, mine, file) {
+  const msg = { who, text, mine, file: file || undefined };
+  chatHistory.push(msg);
+  persistChat();
+  // 弹幕飘字
+  const box = $('danmaku');
+  const d = document.createElement('div');
+  d.className = 'dm' + (mine ? ' me' : '');
+  const b = document.createElement('b');
+  b.textContent = who + '：';
+  d.appendChild(b);
+  d.appendChild(document.createTextNode(text));
+  box.appendChild(d);
+  while (box.children.length > 5) box.removeChild(box.firstChild);
+  setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 800); }, 8000);
+  // 浮层开着就同步进历史
+  if ($('chatOverlay').classList.contains('open')) {
+    appendHist(msg);
+    const list = $('coList');
+    list.scrollTop = list.scrollHeight;
+  }
+}
+function appendHist(m) {
+  const d = document.createElement('div');
+  d.className = 'chm' + (m.mine ? ' me' : '');
+  const b = document.createElement('b');
+  b.textContent = m.who + '：';
+  d.appendChild(b);
+  d.appendChild(document.createTextNode(m.text));
+  if (m.file) {
+    const btn = document.createElement('button');
+    btn.className = 'fdl';
+    btn.textContent = '⬇ 下载 ' + fmtSize(m.file.size);
+    btn.onclick = () => openDownload(m.file.fileId);
+    d.appendChild(btn);
+  }
+  $('coList').appendChild(d);
+}
+
+// ---------- 主播发文件弹窗：弹出卡片，点开即下（12 秒不打扰自动隐） ----------
+let fpTimer = null;
+// 微信 iOS 会静默拦截 window.open（点了没反应）——被拦就本页跳转，微信自己接手下载/预览
+function openDownload(fileId) {
+  const url = dlUrl(fileId);
+  const w = window.open(url, '_blank');
+  if (!w) location.href = url;
+}
+function showFilePopup(file) {
+  $('fpName').textContent = file.name;
+  $('fpSize').textContent = fmtSize(file.size) + ' · 来自主播';
+  $('fpDownload').onclick = () => { openDownload(file.fileId); setTimeout(hideFilePopup, 500); };
+  $('filePopup').classList.add('show');
+  clearTimeout(fpTimer);
+  fpTimer = setTimeout(hideFilePopup, 12000);
+}
+function hideFilePopup() {
+  $('filePopup').classList.remove('show');
+  clearTimeout(fpTimer);
+}
+$('fpLater').onclick = hideFilePopup;
+function openChat() {
+  $('chatOverlay').classList.add('open');
+  unread = 0;
+  $('chatBtn').classList.remove('unread');
+  $('chatBtn').querySelector('span:last-child').textContent = '聊天';
+  $('coTitle').textContent = `消息（${chatHistory.length}）`;
+  const list = $('coList');
+  list.innerHTML = '';
+  chatHistory.forEach(appendHist);
+  list.scrollTop = list.scrollHeight;
+  setTimeout(() => $('coInput').focus(), 100);
+}
+function closeChat() {
+  $('chatOverlay').classList.remove('open');
+  $('coPanel').style.transform = '';
+  $('coInput').blur();
+}
+function sendChat() {
+  const inp = $('coInput');
+  const text = inp.value.trim();
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ t: 'chat', text }));
+  addChat('我', text, true);
+  inp.value = '';
+}
+$('chatBtn').onclick = () => {
+  if ($('chatOverlay').classList.contains('open')) closeChat();
+  else openChat();
+};
+$('coClose').onclick = closeChat;
+$('coSend').onclick = sendChat;
+$('coInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+$('chatOverlay').addEventListener('click', (e) => { if (e.target === $('chatOverlay')) closeChat(); });
+// iOS 键盘弹出时把浮层面板顶到键盘上方
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const fitKeyboard = () => {
+    if (!$('chatOverlay').classList.contains('open')) return;
+    const overlap = Math.round(window.innerHeight - vv.height - vv.offsetTop);
+    $('coPanel').style.transform = overlap > 1 ? `translateY(-${overlap}px)` : '';
+  };
+  vv.addEventListener('resize', fitKeyboard);
+  vv.addEventListener('scroll', fitKeyboard);
+}
+
+// ---------- 统计与播放检测 ----------
+let lastBytes = 0, grow = 0, lastMetaTs = 0, lastQosTs = 0;
+let lastPktsLost = 0, lastPktsRecv = 0, lastFrames = 0, lastFramesTs = 0;
+let resH = 0; // 收到的画面高度（服务器实际发来的分辨率）
+let lastKnownVia = ''; // 最近一次统计的线路类型（回页面时的自动优化依据）
+let rttBaseline = null; // RTT 长期基线（网络漫游检测：突变=环境变了）
+let rttShiftCount = 0, netShiftAt = 0;
+// HTTP 主动探测：切网后旧媒体流还走老接口，统计上「一切没变」；
+// 新发起的请求会被 iOS 强制走当前最优网络（WiFi），探测延迟突变即可暴露切网
+let httpBase = null, httpShift = 0, lastHttpProbe = 0;
+async function probeNet() {
+  const now = Date.now();
+  if (now - lastHttpProbe < 12000 || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!pc || pc.connectionState !== 'connected' || lastKnownVia !== '中继') { httpBase = null; return; }
+  lastHttpProbe = now;
+  const t0 = performance.now();
+  try {
+    await fetch(location.origin + '/host.html', { method: 'HEAD', cache: 'no-store' });
+  } catch (_) { return; }
+  const r = Math.round(performance.now() - t0);
+  if (httpBase == null) { httpBase = r; return; }
+  httpBase = httpBase * 0.8 + r * 0.2;
+  // 只对「显著变快」敏感：蜂窝→WiFi 的特征（变慢多半是拥塞噪声，不值得打断）
+  if (r < httpBase && (httpBase - r) / Math.max(httpBase, 1) > 0.3) {
+    httpShift++;
+    if (httpShift >= 2) {
+      httpShift = 0;
+      httpBase = r;
+      if (now - lastBoostTs > 60000) requestRestart('检测到更快的网络，升级直连…');
+    }
+  } else {
+    httpShift = 0;
+  }
+}
+setInterval(probeNet, 6000);
+// 网络质量分级：绿=正常 黄=注意 红=差
+const grade = (v, warn, bad) => v >= bad ? 'bad' : v >= warn ? 'warn' : 'good';
+const rttCls = (ms) => ms == null ? '' : grade(ms, 150, 400);
+const lossCls = (r) => grade(r, 0.02, 0.08);
+const kbpsCls = (k) => (k >= 500 ? 'good' : k >= 100 ? 'warn' : 'bad');
+setInterval(async () => {
+  if (!pc) return;
+  try {
+    const stats = await pc.getStats();
+    let bytes = 0, rtt = null, via = '';
+    let lost = 0, recv = 0, fps = 0, frames = 0;
+    stats.forEach((s) => {
+      if (s.type === 'inbound-rtp' && s.kind === 'video') {
+        bytes += s.bytesReceived;
+        lost += s.packetsLost || 0;
+        recv += s.packetsReceived || 0;
+        frames += s.framesDecoded || 0;
+        if (s.framesPerSecond) fps += s.framesPerSecond;
+        if (s.frameHeight) resH = s.frameHeight;
+      }
+      if (s.type === 'candidate-pair' && s.state === 'succeeded' && s.nominated && s.currentRoundTripTime != null) {
+        rtt = Math.round(s.currentRoundTripTime * 1000);
+        // 链路任一端是中继，全链路就是中继
+        const local = stats.get(s.localCandidateId);
+        const remote = stats.get(s.remoteCandidateId);
+        const types = [local && local.candidateType, remote && remote.candidateType];
+        if (types.some(Boolean)) via = types.includes('relay') ? '中继' : '直连';
+      }
+    });
+    if (!fps && frames && lastFrames && lastFramesTs) {
+      const dt = (Date.now() - lastFramesTs) / 1000;
+      if (dt > 0) fps = Math.round((frames - lastFrames) / dt);
+    }
+    lastFrames = frames;
+    lastFramesTs = Date.now();
+    grow = bytes > lastBytes ? grow + 1 : 0;
+    const now = Date.now();
+    let kbps = 0, lossRate = 0;
+    if (lastMetaTs && now > lastMetaTs) {
+      kbps = Math.max(0, Math.round((bytes - lastBytes) * 8 / (now - lastMetaTs)));
+      // 窗口内丢包率（比累计值灵敏，也不受静态画面低码率干扰）
+      const dLost = Math.max(0, lost - lastPktsLost), dRecv = Math.max(0, recv - lastPktsRecv);
+      lossRate = (dLost + dRecv) > 0 ? dLost / (dLost + dRecv) : 0;
+      if (via) {
+        lastKnownVia = via;
+        const fpsCls = (f) => (f >= 22 ? 'good' : f >= 12 ? 'warn' : 'bad');
+        const fpsTxt = fps > 0 ? `<span class="${fpsCls(fps)}">${fps}帧</span> · ` : '';
+        const res = resH >= 1000 ? '1080p' : resH >= 680 ? '720p' : resH >= 460 ? '540p' : resH >= 300 ? '360p' : (resH ? resH + 'p' : '');
+        const resTxt = res ? `<b style="color:#e8e8ee">${res}</b>·` : '';
+        $('topMeta').innerHTML = `${via}·${resTxt}<span class="${kbpsCls(kbps)}">${(kbps / 8 / 1000).toFixed(1)}M</span>·${fpsTxt.replace(' · ', '·')}<span class="${rttCls(rtt)}">${rtt ?? '-'}ms</span>` +
+          (lossRate > 0.02 ? `·<span class="${lossCls(lossRate)}">丢包${Math.round(lossRate * 100)}%</span>` : '');
+      }
+      // 中继 + 体验差持续 30 秒 → 自动请求重启线路升级直连（最多两次；回直连后预算重置）
+      const poor = via === '中继' && ((fps > 0 && fps < 18) || (rtt != null && rtt > 300));
+      if (poor) {
+        if (!poorSince) poorSince = now;
+        else if (now - poorSince > 30000 && autoBoostCount < 2) {
+          requestRestart('当前线路不理想，尝试优化…');
+          autoBoostCount++;
+          poorSince = now;
+        }
+      } else {
+        poorSince = 0;
+        if (via === '直连' && autoBoostCount) autoBoostCount = 0;
+      }
+      // 系统自动漫游检测（iOS 无网络事件）：RTT 相对基线突变且连续 3 次 → 网络环境变了
+      // 注意：只先「记录」，给 ICE 自愈（自动 failover，1~2 秒）留时间；
+      // 12 秒后仍在中继才主动重打洞升级——立刻重打洞会叠加二次中断，拉长无声期
+      if (rtt != null && pc.connectionState === 'connected') {
+        if (rttBaseline == null) {
+          rttBaseline = rtt;
+        } else {
+          rttBaseline = rttBaseline * 0.95 + rtt * 0.05; // 基线缓慢跟随
+          const shift = Math.abs(rtt - rttBaseline) / Math.max(rttBaseline, 1);
+          if (shift > 0.4) {
+            rttShiftCount++;
+            if (rttShiftCount >= 3) {
+              rttBaseline = rtt;
+              rttShiftCount = 0;
+              netShiftAt = now;
+            }
+          } else {
+            rttShiftCount = 0;
+          }
+        }
+      }
+      if (netShiftAt && now - netShiftAt > 12000) {
+        if (lastKnownVia === '中继' && now - lastBoostTs > 90000) {
+          requestRestart('网络已变化，切换到更优线路…');
+        }
+        netShiftAt = 0;
+      }
+      // 向主播上报网络质量（自动画质档位的依据）
+      if (now - lastQosTs > 2000 && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ t: 'qos', fps, kbps, loss: lossRate, rtt: rtt || 0 }));
+        lastQosTs = now;
+      }
+      lastPktsLost = lost;
+      lastPktsRecv = recv;
+    }
+    lastBytes = bytes;
+    lastMetaTs = now;
+    if (video.videoWidth > 0 && grow >= 2) {
+      setTitle('V:playing');
+      $('tapHint').style.display = 'none';
+    }
+    // 黑屏兜底：线路通了但视频被拦着没播（蜂窝省流模式常见）→ 给出点按提示
+    if (pc.connectionState === 'connected' && bytes > 0 && (video.paused || video.readyState < 2)) {
+      $('tapHint').style.display = 'flex';
+    }
+  } catch (_) {}
+}, 1000);
+
+if (AUTOSTART && room) {
+  join();
+  if (FAKE) {
+    // e2e：接通后自动开摄像头（Chrome fake 设备画面），验证观众→主播视频回传链路
+    const camTimer = setInterval(() => {
+      if (pc && pc.connectionState === 'connected') {
+        clearInterval(camTimer);
+        setTimeout(() => { if (!camOn) startCam(); }, 800);
+      }
+    }, 500);
+  }
+}
+</script>
+</body>
+</html>
