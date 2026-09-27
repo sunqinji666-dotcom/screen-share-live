@@ -117,9 +117,10 @@ try {
 
 let ws = null;
 let reconnectTimer = null;
+let pendingLogin = null; // 连接未就绪时点登录：暂存凭据，连上自动补发（公网 wss 握手 1~2 秒，用户大概率先点按钮）
 
 function connect() {
-  // 幂等：已有在用/在建的连接就复用，杜绝连接泄漏（泄漏会让多条连接轮流刷验证码）
+  // 幂等：已有在用/在建的连接就复用，杜绝连接泄漏
   clearTimeout(reconnectTimer);
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   const base = location.pathname.replace(/\/[^/]*$/, '');
@@ -131,6 +132,11 @@ function connect() {
       ws.send(JSON.stringify({ t: 'admin-login', sessionToken: tok }));
     } else {
       enterLoginFlow();
+    }
+    // 用户在连接建立前就点了登录：此刻自动补发
+    if (pendingLogin && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ t: 'admin-login', user: pendingLogin.user, pass: pendingLogin.pass }));
+      pendingLogin = null;
     }
   };
   ws.onmessage = (ev) => {
@@ -306,9 +312,15 @@ $('loginBtn').onclick = () => {
   const user = $('userInput').value.trim();
   const pass = $('passInput').value;
   if (!user || !pass) { showToast('用户名和密码都要填'); return; }
-  if (!ws || ws.readyState !== WebSocket.OPEN) { connect(); return; }
   localStorage.setItem('ssl_admin_user', user); // 只记用户名；密码不落地
-  ws.send(JSON.stringify({ t: 'admin-login', user, pass }));
+  if (!ws || (ws.readyState !== WebSocket.OPEN && ws.readyState !== WebSocket.CONNECTING)) connect();
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    pendingLogin = null;
+    ws.send(JSON.stringify({ t: 'admin-login', user, pass }));
+  } else {
+    pendingLogin = { user, pass };
+    showToast('正在连接服务器，连上自动登录…');
+  }
 };
 $('genBtn').onclick = () => {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
