@@ -112,5 +112,11 @@
     "createdAt": 1790510501941,
     "lastUsed": 0,
     "disabled": false
+  },
+  "QC5JP4XF": {
+    "name": "e2e 测试访客",
+    "createdAt": 1790510983233,
+    "lastUsed": 0,
+    "disabled": false
   }
 }

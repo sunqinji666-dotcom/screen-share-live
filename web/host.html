@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-build="09-27 20:00">
+<html lang="zh-CN" data-build="09-27 20:09">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -37,21 +37,15 @@
       <span class="strip-stat">延迟 <b id="stRtt">—</b></span>
       <span class="strip-stat">线路 <b id="stVia">—</b></span>
     </div>
-    <button id="stopBtn" class="button danger" disabled><i data-lucide="phone-off"></i>结束共享</button>
+    <button id="copyBtn" class="button primary" disabled style="flex-shrink:0;padding:9px 18px;font-size:13px"><i data-lucide="copy"></i><span id="copyBtnLabel">复制观众链接</span></button>
+    <button id="stopBtn" class="button danger" disabled style="flex-shrink:0"><i data-lucide="phone-off"></i>结束共享</button>
   </div>
   <section class="room-heading">
     <div>
       <div class="heading-title"><h1>互动开播</h1></div>
     </div>
   </section>
-  <div id="linkCard" class="live-bar">
-    <span class="live-bar-icon"><i data-lucide="link"></i></span>
-    <div class="live-bar-main">
-      <div class="live-bar-label">观众链接</div>
-      <div id="inviteLink" class="link"></div>
-    </div>
-    <button id="copyBtn" class="button primary" disabled><i data-lucide="copy"></i><span id="copyBtnLabel">复制观众链接</span></button>
-  </div>
+  <div id="inviteLink" class="link" style="display:none" aria-hidden="true"></div>
   <section class="workspace">
     <div class="stage-column">
       <section class="share-stage">
@@ -452,7 +446,6 @@ function stop() {
   $('camsRow').innerHTML = '';
   $('preview').srcObject = null;
   $('preview').style.display = 'none';
-  $('linkCard').classList.remove('show');
   $('viewersCard').classList.remove('show');
   $('chatCard').classList.remove('show');
   $('chatList').innerHTML = '';
@@ -529,7 +522,6 @@ function connectSignaling(secret) {
 function showInvite() {
   const link = `${location.origin}${BASE_PATH}/viewer.html?r=${room}`;
   $('inviteLink').textContent = link;
-  $('linkCard').classList.add('show');
   $('viewersCard').classList.add('show');
   $('chatCard').classList.add('show');
   $('copyBtn').disabled = false;

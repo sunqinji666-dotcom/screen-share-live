@@ -168,6 +168,16 @@ function sendChat() {"""),
     # P14 文件面板登记
     ("  addFileMsg(msgId, f.name, f.size, '准备上传…', '');",
      "  addFileMsg(msgId, f.name, f.size, '准备上传…', '');\n  trackFile(msgId, f.name, f.size);"),
+    # P24 复制按钮进顶部状态栏：showInvite 不再操作已删除的 linkCard
+    ("""  $('inviteLink').textContent = link;
+  $('linkCard').classList.add('show');
+  $('viewersCard').classList.add('show');""",
+     """  $('inviteLink').textContent = link;
+  $('viewersCard').classList.add('show');"""),
+    # P25 stop() 同步去掉 linkCard 引用
+    ("""  $('linkCard').classList.remove('show');
+  $('viewersCard').classList.remove('show');""",
+     """  $('viewersCard').classList.remove('show');"""),
     # P23 无观众时也显示采集帧率（原版直接 return，主播开播后顶部/统计条全空）
     ("""setInterval(async () => {
   if (!peers.size) { $('stats').textContent = ''; lastStatsTs = 0; return; }""",
@@ -420,21 +430,15 @@ HOST_BODY = """<header class="topbar">
       <span class="strip-stat">延迟 <b id="stRtt">—</b></span>
       <span class="strip-stat">线路 <b id="stVia">—</b></span>
     </div>
-    <button id="stopBtn" class="button danger" disabled><i data-lucide="phone-off"></i>结束共享</button>
+    <button id="copyBtn" class="button primary" disabled style="flex-shrink:0;padding:9px 18px;font-size:13px"><i data-lucide="copy"></i><span id="copyBtnLabel">复制观众链接</span></button>
+    <button id="stopBtn" class="button danger" disabled style="flex-shrink:0"><i data-lucide="phone-off"></i>结束共享</button>
   </div>
   <section class="room-heading">
     <div>
       <div class="heading-title"><h1>互动开播</h1></div>
     </div>
   </section>
-  <div id="linkCard" class="live-bar">
-    <span class="live-bar-icon"><i data-lucide="link"></i></span>
-    <div class="live-bar-main">
-      <div class="live-bar-label">观众链接</div>
-      <div id="inviteLink" class="link"></div>
-    </div>
-    <button id="copyBtn" class="button primary" disabled><i data-lucide="copy"></i><span id="copyBtnLabel">复制观众链接</span></button>
-  </div>
+  <div id="inviteLink" class="link" style="display:none" aria-hidden="true"></div>
   <section class="workspace">
     <div class="stage-column">
       <section class="share-stage">
