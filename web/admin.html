@@ -148,6 +148,7 @@ function connect() {
         $('stateBadge').textContent = '已登录';
         $('stateBadge').className = 'badge on';
         if ($('stateRow')) $('stateRow').style.display = 'none';
+        document.querySelector('.admin-body').classList.remove('login-mode');
         $('loginCard').style.display = 'none';
         $('mainCard').style.display = 'block';
         $('listCard').style.display = 'block';
@@ -198,6 +199,7 @@ function refreshIcons() {
 
 // 进入登录流程：显示登录卡 + 回填用户名
 function enterLoginFlow() {
+  document.querySelector('.admin-body').classList.add('login-mode');
   showLogin();
   $('stateBadge').textContent = '请登录';
   $('stateBadge').className = 'badge';
