@@ -70,8 +70,10 @@ let wsRetry = 0;"""),
   badge.className = 'badge' + (on ? ' on' : '');
 }""",
      """function setBadge(text, on) {
-  badge.textContent = text;
-  badge.className = 'badge' + (on ? ' on' : '');
+  if (badge) {
+    badge.textContent = text;
+    badge.className = 'badge' + (on ? ' on' : '');
+  }
   const stageStatusEl = document.getElementById('stageStatus');
   const stageDotEl = document.getElementById('stageDot');
   if (stageStatusEl && (on || text === '未开播')) stageStatusEl.textContent = on ? '直播中 · 画面与声音实时送达观众' : '未开播 · 画面与声音仅本机可见';
@@ -233,13 +235,11 @@ function setStat(id, val) {
      """    $('preview').srcObject = screenStream;
     $('preview').style.display = 'block';
     $('liveStats').style.display = 'block';
-    $('sourceTag').textContent = '直播中';
     liveSince = Date.now(); // 顶部状态栏计时起点"""),
     # P20 结束 → 舞台标签复位 + 观众列表重置为空态（新版 stop 后可再开一场）+ 计时清零
     ("""  $('liveStats').style.display = 'none';
   myMeterBuf = null;""",
      """  $('liveStats').style.display = 'none';
-  $('sourceTag').textContent = '待开播';
   $('viewerList').innerHTML = '<p id="viewerEmpty">暂无观众</p>';
   liveSince = null;
   myMeterBuf = null;"""),
@@ -440,6 +440,7 @@ HOST_BODY = """<header class="topbar">
   <a class="brand" href="./index.html" aria-label="同屏首页"><span class="brand-mark"><i data-lucide="screen-share"></i></span><span class="brand-name">同屏</span></a>
   <span class="brand-description">互动开播 · 8 人内双向通话</span>
   <div class="top-right">
+    <button class="icon-btn" data-theme-toggle title="切换日夜模式" aria-label="切换日夜模式"></button>
     <a class="icon-btn" href="./admin.html" title="管理后台" aria-label="管理后台"><i data-lucide="settings-2"></i></a>
   </div>
 </header>
@@ -461,14 +462,12 @@ HOST_BODY = """<header class="topbar">
   <section class="room-heading">
     <div>
       <div class="heading-title"><h1>互动开播</h1></div>
-      <div class="heading-subtitle"><i data-lucide="users-round"></i><span>最多 8 位观众 · 边看边聊</span><span class="divider-dot"></span><span>画面 P2P 直达观众，不经服务器</span></div>
     </div>
-    <div class="heading-actions"><span id="stateBadge" class="badge">未开播</span></div>
   </section>
   <div id="linkCard" class="live-bar">
     <span class="live-bar-icon"><i data-lucide="link"></i></span>
     <div class="live-bar-main">
-      <div class="live-bar-label">观众链接 · 微信里直接点开</div>
+      <div class="live-bar-label">观众链接</div>
       <div id="inviteLink" class="link"></div>
     </div>
     <button id="copyBtn" class="button primary" disabled><i data-lucide="copy"></i><span id="copyBtnLabel">复制观众链接</span></button>
@@ -477,25 +476,19 @@ HOST_BODY = """<header class="topbar">
     <div class="stage-column">
       <section class="share-stage">
         <div class="stage-top">
-          <div class="stage-top-left"><i data-lucide="app-window"></i><span id="sourceTitle">共享预览</span><span class="source-tag" id="sourceTag">待开播</span></div>
+          <div class="stage-top-left"><i data-lucide="app-window"></i><span id="sourceTitle">共享预览</span></div>
           <div class="stage-top-right"><span class="stage-quality">自适应画质</span><button class="icon-btn" id="stageFullBtn" aria-label="画面全屏" title="画面全屏"><i data-lucide="maximize"></i></button></div>
         </div>
         <div class="stage-content">
           <div id="secretCard" class="show">
             <span class="secret-icon"><i data-lucide="monitor-up"></i></span>
             <h2>准备好了就开始</h2>
-            <p class="secret-sub">点「开始共享」选择屏幕或窗口，观众用链接在微信里直接打开即可观看、对话。</p>
-            <div class="row"><input id="secretInput" type="password" placeholder="主播密钥 / 访客密码"><button id="saveSecretBtn" class="button" style="flex-shrink:0">保存</button></div>
+            <div class="row" style="margin-top:16px"><input id="secretInput" type="password" placeholder="主播密钥 / 访客密码"><button id="saveSecretBtn" class="button" style="flex-shrink:0">保存</button></div>
             <div class="tip" id="codeTip" style="display:none;color:#7fb99a;text-align:center"></div>
             <div style="margin-top:14px"><button id="startBtn" class="button primary" style="font-size:15px;padding:13px 34px">开始共享</button></div>
-            <div class="tip" style="text-align:center">访客密码在管理后台生成；自己的密钥会自动记住。</div>
           </div>
           <video id="preview" muted autoplay playsinline></video>
           <video id="camSelf" muted autoplay playsinline></video>
-        </div>
-        <div class="stage-bottom">
-          <div class="stage-bottom-left"><span class="status-dot off" id="stageDot"></span><span id="stageStatus">未开播 · 画面与声音仅本机可见</span></div>
-          <span class="stage-footnote">构建 __BUILD__ · screen-share-live</span>
         </div>
       </section>
       <div id="liveStats" style="display:none;margin-top:2px"><div class="statrow">
@@ -572,28 +565,26 @@ HOST_BODY = """<header class="topbar">
       <div class="control-item"><button id="volBtn" title="音频推子与观众控制" aria-label="音频台"><i data-lucide="sliders-horizontal"></i></button><span class="control-label">音频台</span></div>
     </div>
   </section>
-  <footer class="page-footer">
-    <span class="footer-left"><i data-lucide="info"></i><span>画面走浏览器 P2P 直连，服务器只负责牵线</span></span>
-    <a href="./index.html">返回首页 →</a>
-  </footer>
 </main>
 <div id="toast" role="status" aria-live="polite"></div>
 """
 
-HOST_HEAD = f"""<!DOCTYPE html>
+HOST_HEAD = """<!DOCTYPE html>
 <html lang="zh-CN" data-build="__BUILD__">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>同屏 · 互动开播</title>
 <meta name="theme-color" content="#1c3f32">
+<script>document.documentElement.dataset.theme = (function(){try{return localStorage.getItem('ssl_theme')||'dark'}catch(_){return 'dark'}})();</script>
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="{FAVICON}">
+<link rel="icon" href="__FAVICON__">
 <link rel="stylesheet" href="theme.css">
+<script src="theme-toggle.js"></script>
 <script src="assets/lucide.min.js"></script>
 </head>
 <body>
-"""
+""".replace('__FAVICON__', FAVICON)
 
 (host_web := HOST_HEAD + HOST_BODY + '<script>' + script + '\n' + EXTRA + '</script>\n</body>\n</html>\n')
 (WEB / 'host.html').write_text(HOST_HEAD + HOST_BODY + '<script>' + script + '\n' + EXTRA + '</script>\n</body>\n</html>\n')
@@ -614,11 +605,11 @@ VIEWER_OVERRIDE = """<style>
 #joinScreen{background:var(--canvas);color:var(--ink)}
 #joinScreen h2{font-size:24px;letter-spacing:-.4px;color:var(--ink);font-weight:650}
 #joinScreen p{color:var(--muted);font-size:13.5px;line-height:1.8;margin:10px 0 0}
-.join-card{width:min(400px,100%);background:#fff;border:1px solid var(--line);border-radius:20px;padding:32px 28px 26px;text-align:center;box-shadow:0 1px 2px rgba(28,63,50,.05),0 10px 32px rgba(28,63,50,.08)}
+.join-card{width:min(400px,100%);background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:32px 28px 26px;text-align:center;box-shadow:0 1px 2px rgba(28,63,50,.05),0 10px 32px rgba(28,63,50,.08)}
 .join-brand{display:flex;align-items:center;justify-content:center;gap:9px;font-weight:650;font-size:16px;margin-bottom:20px;color:var(--ink)}
 .join-mark{width:36px;height:36px;border-radius:11px;background:var(--green-deep);color:#e9f1e9;display:inline-flex;align-items:center;justify-content:center}
 .join-mark .icon{width:19px;height:19px}
-.join-kicker{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:650;letter-spacing:.08em;color:var(--green);background:#e9f1e9;border-radius:999px;padding:5px 14px;margin-bottom:14px}
+.join-kicker{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:650;letter-spacing:.08em;color:var(--green);background:var(--light-green);border-radius:999px;padding:5px 14px;margin-bottom:14px}
 .join-dot{width:8px;height:8px;border-radius:50%;background:#2e7d4f}
 #nameInput{width:100%;margin-bottom:12px}
 #joinBtn{width:100%;font-size:15px;padding:13px 0;border-radius:13px;font-weight:650}
@@ -630,7 +621,8 @@ VIEWER_OVERRIDE = """<style>
 #bar button .icon{width:22px;height:22px;stroke-width:1.75}
 #filePopup .fico .icon{width:36px;height:36px}
 #flipBtn .icon{width:15px;height:15px}
-#nameInput{padding:12px 14px;border-radius:12px;border:1px solid #d8ddd6;background:#fbfcfb;color:var(--ink);font-size:14.5px;text-align:center;transition:border-color 140ms}
+#nameInput{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--field);color:var(--ink);font-size:14.5px;text-align:center;transition:border-color 140ms}
+#nameInput::placeholder{color:var(--muted)}
 #nameInput:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(40,91,72,.12)}
 #joinBtn{border:0}
 #topHang{margin-left:10px;width:34px;height:34px;border-radius:50%;border:0;background:rgba(224,82,82,.18);color:#ff8484;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer}
@@ -670,11 +662,13 @@ document.addEventListener('click', (e) => {
 viewer = patch(viewer, [
     # V1 head：标题/manifest/图标/lucide
     ("""<title>屏幕共享 · 观看</title>""",
-     f"""<title>同屏 · 观看</title>
+     """<title>同屏 · 观看</title>
 <meta name="theme-color" content="#000000">
+<script>document.documentElement.dataset.theme = (function(){try{return localStorage.getItem('ssl_theme')||'dark'}catch(_){return 'dark'}})();</script>
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="{FAVICON}">
-<script src="assets/lucide.min.js"></script>"""),
+<link rel="icon" href="__FAVICON__">
+<script src="theme-toggle.js"></script>
+<script src="assets/lucide.min.js"></script>""".replace('__FAVICON__', FAVICON)),
     # V2 override 样式
     ("</style>", "</style>\n" + VIEWER_OVERRIDE),
     # V4 底栏加回应按钮

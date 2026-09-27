@@ -1,13 +1,15 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-build="09-27 17:16">
+<html lang="zh-CN" data-build="09-27 17:27">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>同屏 · 互动开播</title>
 <meta name="theme-color" content="#1c3f32">
+<script>document.documentElement.dataset.theme = (function(){try{return localStorage.getItem('ssl_theme')||'dark'}catch(_){return 'dark'}})();</script>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231c3f32'/%3E%3Ctext x='32' y='44' font-size='32' font-weight='700' text-anchor='middle' fill='%23e9f1e9' font-family='PingFang SC'%3E%E5%90%8C%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="theme.css">
+<script src="theme-toggle.js"></script>
 <script src="assets/lucide.min.js"></script>
 </head>
 <body>
@@ -15,6 +17,7 @@
   <a class="brand" href="./index.html" aria-label="同屏首页"><span class="brand-mark"><i data-lucide="screen-share"></i></span><span class="brand-name">同屏</span></a>
   <span class="brand-description">互动开播 · 8 人内双向通话</span>
   <div class="top-right">
+    <button class="icon-btn" data-theme-toggle title="切换日夜模式" aria-label="切换日夜模式"></button>
     <a class="icon-btn" href="./admin.html" title="管理后台" aria-label="管理后台"><i data-lucide="settings-2"></i></a>
   </div>
 </header>
@@ -36,14 +39,12 @@
   <section class="room-heading">
     <div>
       <div class="heading-title"><h1>互动开播</h1></div>
-      <div class="heading-subtitle"><i data-lucide="users-round"></i><span>最多 8 位观众 · 边看边聊</span><span class="divider-dot"></span><span>画面 P2P 直达观众，不经服务器</span></div>
     </div>
-    <div class="heading-actions"><span id="stateBadge" class="badge">未开播</span></div>
   </section>
   <div id="linkCard" class="live-bar">
     <span class="live-bar-icon"><i data-lucide="link"></i></span>
     <div class="live-bar-main">
-      <div class="live-bar-label">观众链接 · 微信里直接点开</div>
+      <div class="live-bar-label">观众链接</div>
       <div id="inviteLink" class="link"></div>
     </div>
     <button id="copyBtn" class="button primary" disabled><i data-lucide="copy"></i><span id="copyBtnLabel">复制观众链接</span></button>
@@ -52,25 +53,19 @@
     <div class="stage-column">
       <section class="share-stage">
         <div class="stage-top">
-          <div class="stage-top-left"><i data-lucide="app-window"></i><span id="sourceTitle">共享预览</span><span class="source-tag" id="sourceTag">待开播</span></div>
+          <div class="stage-top-left"><i data-lucide="app-window"></i><span id="sourceTitle">共享预览</span></div>
           <div class="stage-top-right"><span class="stage-quality">自适应画质</span><button class="icon-btn" id="stageFullBtn" aria-label="画面全屏" title="画面全屏"><i data-lucide="maximize"></i></button></div>
         </div>
         <div class="stage-content">
           <div id="secretCard" class="show">
             <span class="secret-icon"><i data-lucide="monitor-up"></i></span>
             <h2>准备好了就开始</h2>
-            <p class="secret-sub">点「开始共享」选择屏幕或窗口，观众用链接在微信里直接打开即可观看、对话。</p>
-            <div class="row"><input id="secretInput" type="password" placeholder="主播密钥 / 访客密码"><button id="saveSecretBtn" class="button" style="flex-shrink:0">保存</button></div>
+            <div class="row" style="margin-top:16px"><input id="secretInput" type="password" placeholder="主播密钥 / 访客密码"><button id="saveSecretBtn" class="button" style="flex-shrink:0">保存</button></div>
             <div class="tip" id="codeTip" style="display:none;color:#7fb99a;text-align:center"></div>
             <div style="margin-top:14px"><button id="startBtn" class="button primary" style="font-size:15px;padding:13px 34px">开始共享</button></div>
-            <div class="tip" style="text-align:center">访客密码在管理后台生成；自己的密钥会自动记住。</div>
           </div>
           <video id="preview" muted autoplay playsinline></video>
           <video id="camSelf" muted autoplay playsinline></video>
-        </div>
-        <div class="stage-bottom">
-          <div class="stage-bottom-left"><span class="status-dot off" id="stageDot"></span><span id="stageStatus">未开播 · 画面与声音仅本机可见</span></div>
-          <span class="stage-footnote">构建 09-27 17:16 · screen-share-live</span>
         </div>
       </section>
       <div id="liveStats" style="display:none;margin-top:2px"><div class="statrow">
@@ -147,10 +142,6 @@
       <div class="control-item"><button id="volBtn" title="音频推子与观众控制" aria-label="音频台"><i data-lucide="sliders-horizontal"></i></button><span class="control-label">音频台</span></div>
     </div>
   </section>
-  <footer class="page-footer">
-    <span class="footer-left"><i data-lucide="info"></i><span>画面走浏览器 P2P 直连，服务器只负责牵线</span></span>
-    <a href="./index.html">返回首页 →</a>
-  </footer>
 </main>
 <div id="toast" role="status" aria-live="polite"></div>
 <script>
@@ -304,8 +295,10 @@ setInterval(() => {
 
 function setTitle(s) { document.title = s; }
 function setBadge(text, on) {
-  badge.textContent = text;
-  badge.className = 'badge' + (on ? ' on' : '');
+  if (badge) {
+    badge.textContent = text;
+    badge.className = 'badge' + (on ? ' on' : '');
+  }
   const stageStatusEl = document.getElementById('stageStatus');
   const stageDotEl = document.getElementById('stageDot');
   if (stageStatusEl && (on || text === '未开播')) stageStatusEl.textContent = on ? '直播中 · 画面与声音实时送达观众' : '未开播 · 画面与声音仅本机可见';
@@ -432,7 +425,6 @@ async function start() {
     $('preview').srcObject = screenStream;
     $('preview').style.display = 'block';
     $('liveStats').style.display = 'block';
-    $('sourceTag').textContent = '直播中';
     liveSince = Date.now(); // 顶部状态栏计时起点
     attachMyMeter(micSendTrack || micTrack); // 电平条显示推子后的实际发送电平
     $('micRow').style.display = 'flex';
@@ -483,7 +475,6 @@ function stop() {
   $('micRow').style.display = 'none';
   $('speakerRow').style.display = 'none';
   $('liveStats').style.display = 'none';
-  $('sourceTag').textContent = '待开播';
   $('viewerList').innerHTML = '<p id="viewerEmpty">暂无观众</p>';
   liveSince = null;
   myMeterBuf = null;

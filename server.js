@@ -297,6 +297,8 @@ wss.on('connection', (ws) => {
           send(ws, { t: 'admin-ok' });
           break;
         }
+        // 带了 token 但无效（服务器重启/过期）：不算爆破，让客户端清 token 重新登录
+        if (m.sessionToken) return send(ws, { t: 'err', msg: 'admin-expired' });
         // 机器/测试通道：hostSecret 直登（高熵密钥）
         if (m.secret === HOST_SECRET) {
           adminFails = 0; // 高熵密钥直登成功 → 不是暴力破解，清失败计数
