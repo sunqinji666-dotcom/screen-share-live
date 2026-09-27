@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>页面不存在 · 同屏</title>
+<meta name="theme-color" content="#1c3f32">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231c3f32'/%3E%3Ctext x='32' y='44' font-size='32' font-weight='700' text-anchor='middle' fill='%23e9f1e9' font-family='PingFang SC'%3E%E5%90%8C%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/theme.css">
+<script src="/assets/lucide.min.js"></script>
+<style>
+  .nf{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
+  .nf .nf-code{font-family:ui-monospace,Menlo,monospace;font-size:64px;font-weight:700;color:var(--green);letter-spacing:2px;line-height:1}
+  .nf h1{font-size:20px;margin:14px 0 6px}
+  .nf p{color:var(--muted);font-size:13.5px;line-height:1.8;margin:0 0 24px}
+</style>
+</head>
+<body>
+<main class="nf">
+  <span class="brand-mark"><i data-lucide="screen-share"></i></span>
+  <div class="nf-code" style="margin-top:22px">404</div>
+  <h1>这个页面不存在</h1>
+  <p>链接可能输错了，或者页面已经搬家。<br>观众看直播请直接点主播发给你的链接。</p>
+  <a class="button primary" href="/">回到同屏首页<i data-lucide="arrow-right"></i></a>
+</main>
+<script>
+(function () {
+  const run = () => { if (window.lucide) window.lucide.createIcons({ attrs: { 'stroke-width': 1.75 } }); };
+  if (window.lucide) run(); else window.addEventListener('load', run);
+})();
+</script>
+</body>
+</html>

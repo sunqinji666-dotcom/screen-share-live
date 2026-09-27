@@ -186,7 +186,15 @@ const server = http.createServer((req, res) => {
   const file = path.normalize(path.join(WEB_DIR, p));
   if (!file.startsWith(WEB_DIR + path.sep)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, buf) => {
-    if (err) { res.writeHead(404); return res.end('not found'); }
+    if (err) {
+      // 统一 404 页（同风格；WS 信令与 /dl/ 不走这里）
+      fs.readFile(path.join(WEB_DIR, '404.html'), (e2, nf) => {
+        if (e2) { res.writeHead(404); return res.end('not found'); }
+        res.writeHead(404, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-cache' });
+        res.end(nf);
+      });
+      return;
+    }
     res.writeHead(200, {
       'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
       'Cache-Control': 'no-cache', // 页面要始终拿到最新版（有构建号可核对）

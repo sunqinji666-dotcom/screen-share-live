@@ -24,7 +24,8 @@ with sync_playwright() as p:
     pg_idx.goto(BASE + '/index.html')
     pg_idx.wait_for_load_state('networkidle')
     pg_idx.screenshot(path=str(OUT / '06-index.png'))
-    check('落地页渲染', pg_idx.locator('.entry-card').count() == 3, '3 个入口卡')
+    check('落地页渲染', pg_idx.locator('.entry-card').count() == 3, '3 个入口卡（含洛杉矶大直播）')
+    check('大直播入口恢复', pg_idx.locator('a.entry-card[href*="zhibo2"]').count() == 1)
 
     # ---------- 主播端：待命态 ----------
     pg_host = browser.new_page(viewport={'width': 1440, 'height': 900})
@@ -138,6 +139,11 @@ with sync_playwright() as p:
     pg_m.wait_for_timeout(800)
     pg_m.screenshot(path=str(OUT / '03-host-mobile.png'), full_page=True)
     check('主播端移动布局可渲染', True)
+
+    # ---------- 404 页 ----------
+    code_404 = pg_m.goto(BASE + '/no-such-page.html')
+    check('404 状态码', code_404.status == 404, str(code_404.status))
+    check('404 同风格页面', '这个页面不存在' in pg_m.content())
 
     # ---------- 无 JS 报错 ----------
     check('全程无 JS 异常', not js_errors, '; '.join(js_errors[:3]))
