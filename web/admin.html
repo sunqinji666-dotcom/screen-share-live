@@ -1,95 +1,93 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-build="__BUILD__">
+<html lang="zh-CN" data-build="09-27 16:36">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>屏幕共享 · 管理后台</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>同屏 · 管理后台</title>
+<meta name="theme-color" content="#1c3f32">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231c3f32'/%3E%3Ctext x='32' y='44' font-size='32' font-weight='700' text-anchor='middle' fill='%23e9f1e9' font-family='PingFang SC'%3E%E5%90%8C%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="theme.css">
+<script src="assets/lucide.min.js"></script>
 <style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: -apple-system, "PingFang SC", sans-serif; background: #101014; color: #e8e8ee; }
-  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 20px 60px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  .sub { color: #8a8a99; font-size: 13px; margin-bottom: 20px; line-height: 1.6; }
-  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; background: #2a2a33; color: #aaa; margin-left: 8px; vertical-align: middle; }
-  .badge.on { background: #1d4d2b; color: #6ee7a0; }
-  .card { background: #17171d; border: 1px solid #26262e; border-radius: 12px; padding: 14px 16px; margin-top: 16px; }
-  .card h2 { font-size: 14px; color: #8a8a99; font-weight: 500; margin: 0 0 10px; }
-  button { font: inherit; border: 0; border-radius: 10px; padding: 11px 20px; cursor: pointer; background: #2e6bff; color: #fff; font-weight: 600; }
-  button.ghost { background: #26262e; color: #cfcfda; font-weight: 500; }
-  button.danger { background: #26262e; color: #ff9d9d; font-weight: 500; }
-  button:disabled { opacity: .4; cursor: default; }
-  input { font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid #33333d; background: #1c1c23; color: #e8e8ee; width: 300px; }
-  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
-  th { text-align: left; color: #8a8a99; font-weight: 500; padding: 6px 8px; border-bottom: 1px solid #26262e; }
-  td { padding: 8px; border-bottom: 1px solid #1f1f27; vertical-align: middle; }
-  td.mono { font-family: ui-monospace, Menlo, monospace; font-size: 14px; letter-spacing: 1px; color: #9cc0ff; }
-  td .ops { display: flex; gap: 6px; }
-  td .ops button { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
-  .stat-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
-  .stat-ok { background: #1d4d2b; color: #6ee7a0; }
-  .stat-off { background: #3a2a2a; color: #ff9d9d; }
-  #newCode { font-family: ui-monospace, Menlo, monospace; font-size: 26px; letter-spacing: 4px; color: #6ee7a0; margin: 8px 0; display: none; }
-  .link { font-family: ui-monospace, Menlo, monospace; color: #9cc0ff; word-break: break-all; }
-  .tip { color: #8a8a99; font-size: 12px; margin-top: 8px; line-height: 1.7; }
-  .tip b { color: #cfcfda; }
-  .build { color: #55555e; font-size: 11px; margin-top: 30px; }
-  #toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); background: rgba(18,18,24,.92); color: #fff; padding: 9px 18px; border-radius: 999px; font-size: 13px; opacity: 0; transition: opacity .3s; z-index: 60; pointer-events: none; }
-  #toast.show { opacity: 1; }
+  td .ops button { padding:5px 12px; font-size:12px; border-radius:9px; font-weight:600; border:1px solid var(--line); background:var(--paper); color:#5c665f; }
+  td .ops button:hover { background:var(--light-green); color:var(--green); }
+  td .ops button.danger { color:var(--danger); border-color:#eed4d0; }
+  td .ops button.danger:hover { background:var(--danger-bg); }
+  #passWrap { position:relative; display:inline-flex; }
+  .admin-table-wrap { overflow-x:auto; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>屏幕共享 · 管理后台 <span id="stateBadge" class="badge">未登录</span></h1>
-  <div class="sub">生成访客密码发给朋友——对方打开主播页，把密码粘进密钥框就能开播，不再需要你的主密钥。</div>
+<header class="topbar">
+  <a class="brand" href="./index.html" aria-label="同屏首页"><span class="brand-mark"><i data-lucide="screen-share"></i></span><span class="brand-name">同屏</span></a>
+  <span class="brand-description">管理后台 · 访客密码与直播间</span>
+  <div class="top-right">
+    <a class="icon-btn" href="./host.html" title="回到开播台" aria-label="回到开播台"><i data-lucide="monitor-up"></i></a>
+  </div>
+</header>
+<main class="page-body admin-body">
 
-  <div id="loginCard" class="card">
+  <section id="loginCard" class="admin-card admin-login">
+    <span class="admin-login-icon"><i data-lucide="shield-check"></i></span>
+    <h2>进入管理后台</h2>
+    <p class="admin-login-sub">生成访客密码发给朋友——对方打开主播页，把密码粘进密钥框就能开播，不再需要你的主密钥。</p>
     <div class="row">
-      <input id="userInput" placeholder="用户名" autocomplete="username" style="width:160px">
-      <div style="position:relative;display:inline-flex">
-        <input id="passInput" type="password" placeholder="密码" autocomplete="current-password" style="width:160px;padding-right:38px">
-        <button id="eyeBtn" title="显示/隐藏密码" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:0;cursor:pointer;font-size:15px;padding:4px">👁</button>
+      <input id="userInput" placeholder="用户名" autocomplete="username" style="flex:1;min-width:150px">
+      <div id="passWrap" style="flex:1;min-width:150px">
+        <input id="passInput" type="password" placeholder="密码" autocomplete="current-password" style="width:100%;padding-right:38px">
+        <button id="eyeBtn" title="显示/隐藏密码" aria-label="显示或隐藏密码"><i data-lucide="eye"></i></button>
       </div>
     </div>
     <div class="row" style="margin-top:10px">
-      <input id="capInput" placeholder="验证码" maxlength="4" inputmode="numeric" autocomplete="off" style="width:110px">
-      <span id="capImg" title="点击换一张" style="cursor:pointer;display:inline-flex"></span>
-      <button id="loginBtn">进入后台</button>
+      <button id="loginBtn" class="button primary" style="flex:1">进入后台</button>
     </div>
-    <div class="tip">连续输错 5 次将锁定 10 分钟。验证码 5 分钟内有效、用过即作废。</div>
-  </div>
+    <div class="tip">连续输错 5 次将锁定 10 分钟。<br>登录状态保留 24 小时，断线重连自动恢复。</div>
+  </section>
 
-  <div id="mainCard" class="card" style="display:none">
-    <h2>生成访客密码</h2>
+  <div id="stateRow" class="row" style="margin-top:16px;display:none"><span id="stateBadge" class="badge">未登录</span></div>
+
+  <section id="mainCard" class="admin-card" style="display:none">
+    <div class="admin-card-head"><i data-lucide="key-round"></i>生成访客密码</div>
     <div class="row">
-      <input id="nameInput" placeholder="备注：发给谁（如「张三」）" maxlength="24">
-      <button id="genBtn">生成</button>
+      <input id="nameInput" placeholder="备注：发给谁（如「张三」）" maxlength="24" style="flex:1;min-width:200px">
+      <button id="genBtn" class="button primary">生成</button>
     </div>
     <div id="newCode"></div>
-    <div id="newLink" class="tip" style="display:none">开播链接（直接发给他，点开密码已填好）：<br><span class="link" id="newLinkText"></span> <button class="ghost" id="copyLinkBtn" style="padding:4px 10px;font-size:12px;margin-top:4px">复制链接</button></div>
+    <div id="newLink" style="display:none">
+      <div class="tip" style="margin-top:12px">开播链接（直接发给他，点开密码已填好）：</div>
+      <div class="link" id="newLinkText" style="margin-top:6px"></div>
+      <button class="button" id="copyLinkBtn" style="margin-top:8px"><i data-lucide="copy"></i>复制链接</button>
+    </div>
     <div class="tip">发给对方两样东西：<b>① 主播页地址 https://zhibo.jack-sun.com/host.html　② 这串密码</b>。对方打开页面，把密码粘进密钥框点「开始共享」即可，画面/通话/摄像头功能与你自己开播完全一样。</div>
-  </div>
+  </section>
 
-  <div id="listCard" class="card" style="display:none">
-    <h2>访客密码</h2>
-    <table>
-      <thead><tr><th>密码</th><th>备注</th><th>创建</th><th>最近使用</th><th>状态</th><th>操作</th></tr></thead>
-      <tbody id="guestRows"><tr><td colspan="6" style="color:#8a8a99">暂无</td></tr></tbody>
-    </table>
-  </div>
+  <section id="listCard" class="admin-card" style="display:none">
+    <div class="admin-card-head"><i data-lucide="users"></i>访客密码</div>
+    <div class="admin-table-wrap">
+      <table>
+        <thead><tr><th>密码</th><th>备注</th><th>创建</th><th>最近使用</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody id="guestRows"><tr><td colspan="6" style="color:var(--muted)">暂无</td></tr></tbody>
+      </table>
+    </div>
+  </section>
 
-  <div id="roomsCard" class="card" style="display:none">
-    <h2>当前在线房间</h2>
-    <table>
-      <thead><tr><th>房间</th><th>归属</th><th>观众数</th><th>已开播</th></tr></thead>
-      <tbody id="roomRows"><tr><td colspan="4" style="color:#8a8a99">暂无直播</td></tr></tbody>
-    </table>
+  <section id="roomsCard" class="admin-card" style="display:none">
+    <div class="admin-card-head"><i data-lucide="radio"></i>当前在线房间</div>
+    <div class="admin-table-wrap">
+      <table>
+        <thead><tr><th>房间</th><th>归属</th><th>观众数</th><th>已开播</th></tr></thead>
+        <tbody id="roomRows"><tr><td colspan="4" style="color:var(--muted)">暂无直播</td></tr></tbody>
+      </table>
+    </div>
     <div class="tip">每 5 秒自动刷新。禁用或删除密码会立刻结束该访客正在进行的直播。</div>
-  </div>
+  </section>
 
-  <div class="build">构建 __BUILD__ · screen-share-live admin</div>
-</div>
+  <footer class="page-footer">
+    <span class="footer-left"><i data-lucide="info"></i><span>同屏 · 管理后台</span></span>
+    <span>构建 09-27 16:36</span>
+  </footer>
+</main>
 <div id="toast"></div>
 
 <script>
@@ -105,11 +103,13 @@ try {
   localStorage.setItem('ssl_reload_log', JSON.stringify(_log));
   if (_log.length >= 3) {
     document.addEventListener('DOMContentLoaded', () => {
+      const row = document.getElementById('stateRow');
       const b = document.getElementById('stateBadge');
       if (b) {
+        if (row) row.style.display = 'flex';
         b.textContent = '⚠ 页面 30 秒内被重载 ' + _log.length + ' 次——多为浏览器扩展或「睡眠选项卡」导致，建议关掉其他后台标签/扩展试试';
-        b.style.background = '#4d1d1d';
-        b.style.color = '#ff9d9d';
+        b.style.background = '#f7e9e7';
+        b.style.color = '#ad4940';
       }
     });
   }
@@ -125,46 +125,44 @@ function connect() {
   const base = location.pathname.replace(/\/[^/]*$/, '');
   ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + base + '/ws');
   ws.onopen = () => {
-    // 有会话令牌就静默续登（断线重连无感恢复）；没有才走验证码登录
-    // 注意：重连不主动刷新验证码——正在输的码在服务器 5 分钟内有效，跟连接无关
+    // 有会话令牌就静默续登（断线重连无感恢复）；没有才走账号登录
     const tok = localStorage.getItem('ssl_admin_session');
     if (tok) {
       ws.send(JSON.stringify({ t: 'admin-login', sessionToken: tok }));
     } else {
-      enterLoginFlow(false);
+      enterLoginFlow();
     }
   };
   ws.onmessage = (ev) => {
     let m;
     try { m = JSON.parse(ev.data); } catch (_) { return; }
     switch (m.t) {
-      case 'admin-captcha':
-        captchaId = m.id;
-        $('capImg').innerHTML = m.svg;
-        $('capInput').value = '';
-        break;
       case 'admin-ok':
         if (m.sessionToken) localStorage.setItem('ssl_admin_session', m.sessionToken);
         $('stateBadge').textContent = '已登录';
         $('stateBadge').className = 'badge on';
+        if ($('stateRow')) $('stateRow').style.display = 'none';
         $('loginCard').style.display = 'none';
         $('mainCard').style.display = 'block';
         $('listCard').style.display = 'block';
         $('roomsCard').style.display = 'block';
         ws.send(JSON.stringify({ t: 'admin-list' }));
         refreshRooms();
+        refreshIcons();
         break;
       case 'err':
         if (m.msg === 'bad-admin-credential') {
           $('stateBadge').textContent = '用户名、密码或验证码不对';
           $('stateBadge').className = 'badge';
-          enterLoginFlow(true); // 码已被消费，换新
+          if ($('stateRow')) { $('stateRow').style.display = 'flex'; }
+          enterLoginFlow();
         } else if (m.msg === 'admin-locked') {
           $('stateBadge').textContent = '已锁定，约 ' + Math.ceil((m.retryAfter || 600) / 60) + ' 分钟后再试';
           $('stateBadge').className = 'badge';
+          if ($('stateRow')) { $('stateRow').style.display = 'flex'; }
         } else if (m.msg === 'admin-expired') {
           showToast('登录已过期，请重新登录');
-          enterLoginFlow(true);
+          enterLoginFlow();
         }
         break;
       case 'admin-created':
@@ -182,26 +180,23 @@ function connect() {
     // 会话令牌还在本地，重连成功即自动续登，不用重新输验证码
     $('stateBadge').textContent = '连接断开，重连中…';
     $('stateBadge').className = 'badge';
+    if ($('stateRow')) { $('stateRow').style.display = 'flex'; }
     clearTimeout(reconnectTimer);
     reconnectTimer = setTimeout(connect, 3000);
   };
 }
 
-// 进入登录流程：显示登录卡 + 回填用户名。
-// refreshCaptcha=true（登录失败后码已消费，必须换新的）；重连场景传 false，保留正在输入的码
-function enterLoginFlow(refreshCaptcha) {
+function refreshIcons() {
+  if (window.lucide) window.lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
+}
+
+// 进入登录流程：显示登录卡 + 回填用户名
+function enterLoginFlow() {
   showLogin();
   $('stateBadge').textContent = '请登录';
   $('stateBadge').className = 'badge';
-  if (refreshCaptcha || !$('capImg').innerHTML.includes('<svg')) requestCaptcha();
   $('userInput').value = localStorage.getItem('ssl_admin_user') || '';
 }
-
-let captchaId = '';
-function requestCaptcha() {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'admin-captcha' }));
-}
-$('capImg').onclick = requestCaptcha;
 
 let toastTimer = null;
 function showToast(text) {
@@ -243,7 +238,7 @@ function fmtTs(ts) {
 function renderGuests(list) {
   const tb = $('guestRows');
   tb.innerHTML = '';
-  if (!list.length) { tb.innerHTML = '<tr><td colspan="6" style="color:#8a8a99">还没有访客密码，先生成一个。</td></tr>'; return; }
+  if (!list.length) { tb.innerHTML = '<tr><td colspan="6" style="color:var(--muted)">还没有访客密码，先生成一个。</td></tr>'; return; }
   list.forEach((g) => {
     const tr = document.createElement('tr');
     const c1 = document.createElement('td');
@@ -264,7 +259,6 @@ function renderGuests(list) {
     const ops = document.createElement('span');
     ops.className = 'ops';
     const copyLink = document.createElement('button');
-    copyLink.className = 'ghost';
     copyLink.textContent = '复制链接';
     copyLink.title = '复制 TA 的开播链接（自带密码）';
     copyLink.onclick = () => {
@@ -273,7 +267,6 @@ function renderGuests(list) {
       showToast('已复制「' + (g.name || g.code) + '」的开播链接');
     };
     const toggle = document.createElement('button');
-    toggle.className = 'ghost';
     toggle.textContent = g.disabled ? '启用' : '停用';
     toggle.onclick = () => ws.send(JSON.stringify({ t: 'admin-set', code: g.code, disabled: !g.disabled }));
     const del = document.createElement('button');
@@ -292,7 +285,7 @@ function renderGuests(list) {
 function renderRooms(list) {
   const tb = $('roomRows');
   tb.innerHTML = '';
-  if (!list.length) { tb.innerHTML = '<tr><td colspan="4" style="color:#8a8a99">暂无直播</td></tr>'; return; }
+  if (!list.length) { tb.innerHTML = '<tr><td colspan="4" style="color:var(--muted)">暂无直播</td></tr>'; return; }
   list.forEach((r) => {
     const tr = document.createElement('tr');
     [r.room, r.owner, String(r.viewers), r.startedAt ? Math.round((Date.now() - r.startedAt) / 60000) + ' 分钟' : '—'].forEach((v) => {
@@ -312,11 +305,10 @@ setInterval(refreshRooms, 5000);
 $('loginBtn').onclick = () => {
   const user = $('userInput').value.trim();
   const pass = $('passInput').value;
-  const cap = $('capInput').value.trim();
-  if (!user || !pass || !cap) { showToast('用户名、密码、验证码都要填'); return; }
+  if (!user || !pass) { showToast('用户名和密码都要填'); return; }
   if (!ws || ws.readyState !== WebSocket.OPEN) { connect(); return; }
   localStorage.setItem('ssl_admin_user', user); // 只记用户名；密码不落地
-  ws.send(JSON.stringify({ t: 'admin-login', user, pass, captchaId, captchaCode: cap }));
+  ws.send(JSON.stringify({ t: 'admin-login', user, pass }));
 };
 $('genBtn').onclick = () => {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -328,16 +320,17 @@ $('genBtn').onclick = () => {
   ws.send(JSON.stringify({ t: 'admin-create', name: $('nameInput').value.trim() }));
   $('nameInput').value = '';
 };
-$('capInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('loginBtn').onclick(); });
 $('passInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('loginBtn').onclick(); });
 // 密码小眼睛：点一下明文/密文切换
 $('eyeBtn').onclick = () => {
   const p = $('passInput');
   p.type = p.type === 'password' ? 'text' : 'password';
-  $('eyeBtn').textContent = p.type === 'password' ? '👁' : '🙈';
+  $('eyeBtn').innerHTML = '<i data-lucide="' + (p.type === 'password' ? 'eye' : 'eye-off') + '"></i>';
+  refreshIcons();
 };
 
 // 打开页面即连：有会话令牌就自动恢复登录，没有才要求验证码登录
+refreshIcons();
 connect();
 </script>
 </body>

@@ -262,6 +262,40 @@ body.viewer-dark{background:#000;color:#e8e8ee}
 #panel-chat>.chat-inner{display:flex;flex-direction:column;flex:1;min-height:0}
 .sent-list{display:flex;flex-direction:column;gap:8px}
 
+/* ---------- 直播条（开播后常驻：链接一眼可及 + 一键复制） ---------- */
+.live-bar{display:none;align-items:center;gap:14px;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;box-shadow:var(--shadow);margin-bottom:14px;flex-wrap:wrap}
+.live-bar.show{display:flex}
+.live-bar .live-bar-icon{width:38px;height:38px;border-radius:11px;background:var(--light-green);color:var(--green);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.live-bar .live-bar-main{flex:1;min-width:200px}
+.live-bar .live-bar-label{font-size:11.5px;font-weight:650;letter-spacing:.05em;color:var(--muted);margin-bottom:3px}
+.live-bar .link{background:transparent;padding:0;border-radius:0}
+.live-bar .button{flex-shrink:0}
+
+/* ---------- 管理后台 ---------- */
+.admin-body{max-width:920px}
+.admin-login{max-width:440px;margin:40px auto 0;text-align:center;padding:30px 28px 24px}
+.admin-login .admin-login-icon{width:52px;height:52px;border-radius:14px;background:var(--light-green);color:var(--green);display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px}
+.admin-login .admin-login-icon .icon{width:26px;height:26px}
+.admin-login h2{margin-bottom:4px}
+.admin-login .admin-login-sub{color:var(--muted);font-size:13px;margin-bottom:18px;line-height:1.7}
+.admin-login .row{justify-content:center}
+.admin-login .tip{text-align:center}
+.admin-card-head{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:650;margin-bottom:12px}
+.admin-card-head .icon{width:17px;height:17px;color:var(--green)}
+#newCode{font-family:ui-monospace,Menlo,monospace;font-size:28px;letter-spacing:5px;color:var(--green);font-weight:700;margin:14px 0 6px;display:none}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--muted);font-weight:600;font-size:11.5px;letter-spacing:.05em;padding:7px 9px;border-bottom:1px solid var(--line)}
+td{padding:9px;border-bottom:1px solid #eef1ec;vertical-align:middle;color:#3a463f}
+tr:last-child td{border-bottom:0}
+td.mono{font-family:ui-monospace,Menlo,monospace;font-size:13.5px;letter-spacing:1px;color:var(--green);font-weight:600}
+td .ops{display:flex;gap:6px;flex-wrap:wrap}
+.stat-tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600}
+.stat-ok{background:var(--light-green);color:var(--green)}
+.stat-off{background:var(--danger-bg);color:var(--danger)}
+#eyeBtn{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:8px;background:transparent;border:0;color:var(--muted);display:inline-flex;align-items:center;justify-content:center}
+#eyeBtn:hover{background:var(--light-green);color:var(--green)}
+#eyeBtn .icon{width:16px;height:16px}
+
 /* ---------- 响应式 ---------- */
 @media (max-width:1080px){
   .workspace{flex-direction:column}
@@ -278,12 +312,16 @@ body.viewer-dark{background:#000;color:#e8e8ee}
   .control-item{min-width:52px}
   .control-item>button{width:46px;height:46px}
   .control-label{font-size:10.5px}
-  .end-button{padding:11px 16px}
   .stage-content{min-height:200px}
   .stage-content video{max-height:44vh}
   .stage-footnote{display:none}
   .stage-bottom-left{max-width:64%}
   #camSelf{width:140px}
+  /* 移动端：控制坞固定底部（主播随时能结束/录制，不用滚到页尾） */
+  .controls{position:fixed;left:0;right:0;bottom:0;z-index:40;border-radius:16px 16px 0 0;margin:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(28,63,50,.12)}
+  .page-body{padding-bottom:110px}
+  .live-bar{padding:10px 12px}
+  .live-bar .live-bar-icon{display:none}
 }
 @media (prefers-reduced-motion:reduce){
   *{transition:none !important;animation:none !important}

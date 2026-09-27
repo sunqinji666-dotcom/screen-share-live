@@ -372,6 +372,14 @@ HOST_BODY = """<header class="topbar">
     </div>
     <div class="heading-actions"><span id="stateBadge" class="badge">未开播</span></div>
   </section>
+  <div id="linkCard" class="live-bar">
+    <span class="live-bar-icon"><i data-lucide="link"></i></span>
+    <div class="live-bar-main">
+      <div class="live-bar-label">观众链接 · 微信里直接点开</div>
+      <div id="inviteLink" class="link"></div>
+    </div>
+    <button id="copyBtn" class="button primary" disabled><i data-lucide="copy"></i><span id="copyBtnLabel">复制观众链接</span></button>
+  </div>
   <section class="workspace">
     <div class="stage-column">
       <section class="share-stage">
@@ -407,11 +415,6 @@ HOST_BODY = """<header class="topbar">
         <span class="sitem">线路 <b id="stVia">—</b></span>
       </div></div>
       <div id="camsRow"></div>
-      <div id="linkCard" class="card" style="margin-top:2px">
-        <div class="card-title"><i data-lucide="link"></i>观众链接 · 微信里直接点开</div>
-        <div id="inviteLink" class="link"></div>
-        <button id="copyBtn" class="button primary copy-inline" style="margin-top:10px;width:100%"><i data-lucide="copy"></i><span id="copyBtnLabel">复制观众链接</span></button>
-      </div>
     </div>
     <aside class="side-panel">
       <div class="panel-tabs" role="tablist" aria-label="协作面板">
@@ -640,7 +643,7 @@ print('viewer.html 组装完成')
 # ---- 构建号注入（本地即成品；线上 deploy.sh 再注入一次，无占位符则无操作）----
 import datetime
 build = datetime.datetime.now().strftime('%m-%d %H:%M')
-for name in ('host.html', 'viewer.html', 'index.html'):
+for name in ('host.html', 'viewer.html', 'index.html', 'admin.html'):
     p = WEB / name
     txt = p.read_text()
     if '__BUILD__' in txt:

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-build="09-27 16:17">
+<html lang="zh-CN" data-build="09-27 16:36">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -26,6 +26,14 @@
     </div>
     <div class="heading-actions"><span id="stateBadge" class="badge">未开播</span></div>
   </section>
+  <div id="linkCard" class="live-bar">
+    <span class="live-bar-icon"><i data-lucide="link"></i></span>
+    <div class="live-bar-main">
+      <div class="live-bar-label">观众链接 · 微信里直接点开</div>
+      <div id="inviteLink" class="link"></div>
+    </div>
+    <button id="copyBtn" class="button primary" disabled><i data-lucide="copy"></i><span id="copyBtnLabel">复制观众链接</span></button>
+  </div>
   <section class="workspace">
     <div class="stage-column">
       <section class="share-stage">
@@ -48,7 +56,7 @@
         </div>
         <div class="stage-bottom">
           <div class="stage-bottom-left"><span class="status-dot off" id="stageDot"></span><span id="stageStatus">未开播 · 画面与声音仅本机可见</span></div>
-          <span class="stage-footnote">构建 09-27 16:17 · screen-share-live</span>
+          <span class="stage-footnote">构建 09-27 16:36 · screen-share-live</span>
         </div>
       </section>
       <div id="liveStats" style="display:none;margin-top:2px"><div class="statrow">
@@ -61,11 +69,6 @@
         <span class="sitem">线路 <b id="stVia">—</b></span>
       </div></div>
       <div id="camsRow"></div>
-      <div id="linkCard" class="card" style="margin-top:2px">
-        <div class="card-title"><i data-lucide="link"></i>观众链接 · 微信里直接点开</div>
-        <div id="inviteLink" class="link"></div>
-        <button id="copyBtn" class="button primary copy-inline" style="margin-top:10px;width:100%"><i data-lucide="copy"></i><span id="copyBtnLabel">复制观众链接</span></button>
-      </div>
     </div>
     <aside class="side-panel">
       <div class="panel-tabs" role="tablist" aria-label="协作面板">

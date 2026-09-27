@@ -25,9 +25,9 @@ const ICE_SERVERS = cfg.iceServers || [];
 const ADMIN_USER = 'jacksun';
 const ADMIN_PASS = 'jacksun1234';
 
-// ---------------- 图形验证码（防后台暴力破解） ----------------
-// 4 位数字 SVG，5 分钟有效、一次性；连错 5 次锁 10 分钟
-const captchas = new Map(); // id -> { code, ts }
+// ---------------- 管理后台登录 ----------------
+// 用户名+密码登录，连续错 5 次锁 10 分钟（防爆破）；会话令牌 24h，断线重连凭 token 秒恢复
+// （2026-09-27 按孙哥要求移除图形验证码：验证码影响登录成功率，防爆破交由失败锁定）
 let adminFails = 0, adminLockUntil = 0;
 // 会话令牌：验证码登录成功一次后发放，之后断线重连凭 token 秒恢复（免验证码），24h 有效
 const adminSessions = new Map(); // token -> 签发时间
@@ -42,34 +42,6 @@ function checkAdminSession(token) {
   if (typeof token !== 'string' || !token) return false;
   const ts = adminSessions.get(token);
   return !!ts && Date.now() - ts <= ADMIN_SESSION_TTL;
-}
-
-function makeCaptchaSvg(code) {
-  const colors = ['#9cc0ff', '#6ee7a0', '#f0b429', '#ff9d9d', '#b9a7ff'];
-  let chars = '';
-  [...code].forEach((ch, i) => {
-    const x = 20 + i * 20 + crypto.randomInt(9) - 4;
-    const y = 35 + crypto.randomInt(11) - 5;
-    const rot = crypto.randomInt(51) - 25;
-    const c = colors[crypto.randomInt(colors.length)];
-    chars += `<text x="${x}" y="${y}" fill="${c}" font-size="29" font-weight="700" font-family="monospace" transform="rotate(${rot} ${x} ${y})">${ch}</text>`;
-  });
-  let lines = '';
-  for (let i = 0; i < 3; i++) {
-    lines += `<line x1="${crypto.randomInt(110)}" y1="${crypto.randomInt(50)}" x2="${crypto.randomInt(110)}" y2="${crypto.randomInt(50)}" stroke="#3a3a4a" stroke-width="1.5"/>`;
-  }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="110" height="50" viewBox="0 0 110 50"><rect width="110" height="50" rx="8" fill="#1c1c23"/>${lines}${chars}</svg>`;
-}
-
-function newCaptcha() {
-  for (const [k, v] of captchas) if (Date.now() - v.ts > 5 * 60 * 1000) captchas.delete(k);
-  const id = rid();
-  // config.json 配了 testCaptcha 时用固定码（本机 e2e 用；线上 config 没这字段，旁路不生效）
-  const code = cfg.testCaptcha
-    ? String(cfg.testCaptcha).padStart(4, '0')
-    : String(crypto.randomInt(10000)).padStart(4, '0');
-  captchas.set(id, { code, ts: Date.now() });
-  return { id, svg: makeCaptchaSvg(code) };
 }
 
 function adminFail(ws) {
@@ -308,22 +280,16 @@ wss.on('connection', (ws) => {
         break;
       }
 
-      // ---------------- 管理后台（jacksun + 密码 + 验证码；hostSecret 供机器直登） ----------------
-      case 'admin-captcha': {
-        const c = newCaptcha();
-        send(ws, { t: 'admin-captcha', id: c.id, svg: c.svg });
-        break;
-      }
-
+      // ---------------- 管理后台（jacksun + 密码；hostSecret 供机器直登） ----------------
       case 'admin-login': {
-        // 会话续登：断线重连凭 token 秒恢复，不过验证码（续登即滚动延期）
+        // 会话续登：断线重连凭 token 秒恢复，不过密码（续登即滚动延期）
         if (checkAdminSession(m.sessionToken)) {
           adminSessions.set(m.sessionToken, Date.now());
           ws.role = 'admin';
           send(ws, { t: 'admin-ok' });
           break;
         }
-        // 机器/测试通道：hostSecret 直登（高熵密钥，不过人机验证）
+        // 机器/测试通道：hostSecret 直登（高熵密钥）
         if (m.secret === HOST_SECRET) {
           adminFails = 0; // 高熵密钥直登成功 → 不是暴力破解，清失败计数
           ws.role = 'admin';
@@ -331,10 +297,6 @@ wss.on('connection', (ws) => {
           break;
         }
         if (Date.now() < adminLockUntil) return send(ws, { t: 'err', msg: 'admin-locked', retryAfter: Math.ceil((adminLockUntil - Date.now()) / 1000) });
-        const cap = captchas.get(m.captchaId);
-        const capOk = cap && Date.now() - cap.ts < 5 * 60 * 1000 && cap.code === String(m.captchaCode || '').trim();
-        if (cap) captchas.delete(m.captchaId); // 验证码一次性，对错都作废
-        if (!capOk) return adminFail(ws);
         if (m.user !== ADMIN_USER || m.pass !== ADMIN_PASS) return adminFail(ws);
         adminFails = 0;
         ws.role = 'admin';
