@@ -189,44 +189,6 @@ function sendChat() {"""),
     lastStatsTs = 0;
     return;
   }"""),
-    ("""function setStat(id, val) {
-  const el = document.getElementById(id);
-  if (!el || el.textContent === String(val)) return;
-  el.textContent = String(val);
-  el.classList.remove('flash');
-  void el.offsetWidth;
-  el.classList.add('flash');
-  setTimeout(() => el.classList.remove('flash'), 650);
-}""",
-     """const STAT_MIRROR = { stFps: 'stripFps', stRate: 'stripRate', stRtt: 'stripRtt' };
-function setStat(id, val) {
-  const el = document.getElementById(id);
-  if (el && el.textContent !== String(val)) {
-    el.textContent = String(val);
-    el.classList.remove('flash');
-    void el.offsetWidth;
-    el.classList.add('flash');
-    setTimeout(() => el.classList.remove('flash'), 650);
-  }
-  const mirrorEl = document.getElementById(STAT_MIRROR[id] || '');
-  if (mirrorEl && mirrorEl.textContent !== String(val)) mirrorEl.textContent = String(val);
-}"""),
-    # P22 stVia 镜像（线路色同步）
-    ("""    const viaEl = document.getElementById('stVia');
-    if (viaEl) {
-      viaEl.textContent = viaTxt;
-      viaEl.className = viaTxt.includes('中继') ? 'warn' : viaTxt.includes('直连') ? 'good' : '';
-    }""",
-     """    const viaEl = document.getElementById('stVia');
-    if (viaEl) {
-      viaEl.textContent = viaTxt;
-      viaEl.className = viaTxt.includes('中继') ? 'warn' : viaTxt.includes('直连') ? 'good' : '';
-    }
-    const stripViaEl = document.getElementById('stripVia');
-    if (stripViaEl) {
-      stripViaEl.textContent = viaTxt;
-      stripViaEl.className = viaTxt.includes('中继') ? 'warn' : viaTxt.includes('直连') ? 'good' : '';
-    }"""),
     # P19 开播成功 → 舞台标签切"直播中"（锚定真实采集流，不随瞬时提示漂移；
     # sourceTag 不挂 setBadge——摄像头等瞬时提示会把"直播中"打回"待开播"）
     ("""    $('preview').srcObject = screenStream;
@@ -234,13 +196,11 @@ function setStat(id, val) {
     $('liveStats').style.display = 'block';""",
      """    $('preview').srcObject = screenStream;
     $('preview').style.display = 'block';
-    $('liveStats').style.display = 'block';
     liveSince = Date.now(); // 顶部状态栏计时起点"""),
     # P20 结束 → 舞台标签复位 + 观众列表重置为空态（新版 stop 后可再开一场）+ 计时清零
     ("""  $('liveStats').style.display = 'none';
   myMeterBuf = null;""",
-     """  $('liveStats').style.display = 'none';
-  $('viewerList').innerHTML = '<p id="viewerEmpty">暂无观众</p>';
+     """  $('viewerList').innerHTML = '<p id="viewerEmpty">暂无观众</p>';
   liveSince = null;
   myMeterBuf = null;"""),
     # P16 观众行状态中文化（connectionState 英文 → 中文）
@@ -452,10 +412,13 @@ HOST_BODY = """<header class="topbar">
       <time id="stripClock" class="mono">00:00</time>
     </div>
     <div class="live-strip-stats">
-      <span class="strip-stat">帧率 <b id="stripFps">—</b></span>
-      <span class="strip-stat">速率 <b id="stripRate">—</b></span>
-      <span class="strip-stat">延迟 <b id="stripRtt">—</b></span>
-      <span class="strip-stat">线路 <b id="stripVia">—</b></span>
+      <span class="strip-stat">画质 <b id="stRes">—</b></span>
+      <span class="strip-stat">帧率 <b id="stFps">—</b></span>
+      <span class="strip-stat">采集 <b id="stCap">—</b></span>
+      <span class="strip-stat">速率 <b id="stRate">—</b></span>
+      <span class="strip-stat">编码 <b id="stEnc">—</b></span>
+      <span class="strip-stat">延迟 <b id="stRtt">—</b></span>
+      <span class="strip-stat">线路 <b id="stVia">—</b></span>
     </div>
     <button id="stopBtn" class="button danger" disabled><i data-lucide="phone-off"></i>结束共享</button>
   </div>
@@ -491,15 +454,6 @@ HOST_BODY = """<header class="topbar">
           <video id="camSelf" muted autoplay playsinline></video>
         </div>
       </section>
-      <div id="liveStats" style="display:none;margin-top:2px"><div class="statrow">
-        <span class="sitem">画质 <b id="stRes">—</b></span>
-        <span class="sitem">帧率 <b id="stFps">—</b></span>
-        <span class="sitem">采集 <b id="stCap">—</b></span>
-        <span class="sitem">速率 <b id="stRate">—</b></span>
-        <span class="sitem">编码 <b id="stEnc">—</b></span>
-        <span class="sitem">延迟 <b id="stRtt">—</b></span>
-        <span class="sitem">线路 <b id="stVia">—</b></span>
-      </div></div>
       <div id="camsRow"></div>
     </div>
     <aside class="side-panel">
@@ -552,10 +506,6 @@ HOST_BODY = """<header class="topbar">
     </aside>
   </section>
   <section class="controls">
-    <div class="connection-summary">
-      <span class="connection-icon"><i data-lucide="signal"></i></span>
-      <div><div class="connection-label">同屏 · 互动开播</div><div class="connection-meta">8 人内 · 双向通话 · 低延迟</div></div>
-    </div>
     <div class="control-dock">
       <div class="control-item"><button id="micBtn" aria-pressed="false" title="麦克风 · Alt+M" aria-label="麦克风开关"><i data-lucide="mic"></i></button><span id="micBtnLabel" class="control-label">麦克风</span></div>
       <div class="control-item"><button id="camBtn" disabled title="摄像头 · Alt+V" aria-label="摄像头开关"><i data-lucide="video"></i></button><span id="camBtnLabel" class="control-label">摄像头</span></div>

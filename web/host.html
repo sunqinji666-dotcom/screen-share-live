@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-build="09-27 17:27">
+<html lang="zh-CN" data-build="09-27 20:00">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -29,10 +29,13 @@
       <time id="stripClock" class="mono">00:00</time>
     </div>
     <div class="live-strip-stats">
-      <span class="strip-stat">帧率 <b id="stripFps">—</b></span>
-      <span class="strip-stat">速率 <b id="stripRate">—</b></span>
-      <span class="strip-stat">延迟 <b id="stripRtt">—</b></span>
-      <span class="strip-stat">线路 <b id="stripVia">—</b></span>
+      <span class="strip-stat">画质 <b id="stRes">—</b></span>
+      <span class="strip-stat">帧率 <b id="stFps">—</b></span>
+      <span class="strip-stat">采集 <b id="stCap">—</b></span>
+      <span class="strip-stat">速率 <b id="stRate">—</b></span>
+      <span class="strip-stat">编码 <b id="stEnc">—</b></span>
+      <span class="strip-stat">延迟 <b id="stRtt">—</b></span>
+      <span class="strip-stat">线路 <b id="stVia">—</b></span>
     </div>
     <button id="stopBtn" class="button danger" disabled><i data-lucide="phone-off"></i>结束共享</button>
   </div>
@@ -68,15 +71,6 @@
           <video id="camSelf" muted autoplay playsinline></video>
         </div>
       </section>
-      <div id="liveStats" style="display:none;margin-top:2px"><div class="statrow">
-        <span class="sitem">画质 <b id="stRes">—</b></span>
-        <span class="sitem">帧率 <b id="stFps">—</b></span>
-        <span class="sitem">采集 <b id="stCap">—</b></span>
-        <span class="sitem">速率 <b id="stRate">—</b></span>
-        <span class="sitem">编码 <b id="stEnc">—</b></span>
-        <span class="sitem">延迟 <b id="stRtt">—</b></span>
-        <span class="sitem">线路 <b id="stVia">—</b></span>
-      </div></div>
       <div id="camsRow"></div>
     </div>
     <aside class="side-panel">
@@ -129,10 +123,6 @@
     </aside>
   </section>
   <section class="controls">
-    <div class="connection-summary">
-      <span class="connection-icon"><i data-lucide="signal"></i></span>
-      <div><div class="connection-label">同屏 · 互动开播</div><div class="connection-meta">8 人内 · 双向通话 · 低延迟</div></div>
-    </div>
     <div class="control-dock">
       <div class="control-item"><button id="micBtn" aria-pressed="false" title="麦克风 · Alt+M" aria-label="麦克风开关"><i data-lucide="mic"></i></button><span id="micBtnLabel" class="control-label">麦克风</span></div>
       <div class="control-item"><button id="camBtn" disabled title="摄像头 · Alt+V" aria-label="摄像头开关"><i data-lucide="video"></i></button><span id="camBtnLabel" class="control-label">摄像头</span></div>
@@ -309,18 +299,14 @@ function setBadge(text, on) {
   if (stripDotEl) stripDotEl.className = 'status-dot' + (on ? '' : ' off');
 }
 // 状态条单值更新：数值变化时高亮闪一下
-const STAT_MIRROR = { stFps: 'stripFps', stRate: 'stripRate', stRtt: 'stripRtt' };
 function setStat(id, val) {
   const el = document.getElementById(id);
-  if (el && el.textContent !== String(val)) {
-    el.textContent = String(val);
-    el.classList.remove('flash');
-    void el.offsetWidth;
-    el.classList.add('flash');
-    setTimeout(() => el.classList.remove('flash'), 650);
-  }
-  const mirrorEl = document.getElementById(STAT_MIRROR[id] || '');
-  if (mirrorEl && mirrorEl.textContent !== String(val)) mirrorEl.textContent = String(val);
+  if (!el || el.textContent === String(val)) return;
+  el.textContent = String(val);
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 650);
 }
 
 // ---------- 测试用假源（?fake=1） ----------
@@ -424,7 +410,6 @@ async function start() {
 
     $('preview').srcObject = screenStream;
     $('preview').style.display = 'block';
-    $('liveStats').style.display = 'block';
     liveSince = Date.now(); // 顶部状态栏计时起点
     attachMyMeter(micSendTrack || micTrack); // 电平条显示推子后的实际发送电平
     $('micRow').style.display = 'flex';
@@ -474,7 +459,6 @@ function stop() {
   while ($('chatTarget').options.length > 1) $('chatTarget').remove(1);
   $('micRow').style.display = 'none';
   $('speakerRow').style.display = 'none';
-  $('liveStats').style.display = 'none';
   $('viewerList').innerHTML = '<p id="viewerEmpty">暂无观众</p>';
   liveSince = null;
   myMeterBuf = null;
@@ -1197,11 +1181,6 @@ setInterval(async () => {
     if (viaEl) {
       viaEl.textContent = viaTxt;
       viaEl.className = viaTxt.includes('中继') ? 'warn' : viaTxt.includes('直连') ? 'good' : '';
-    }
-    const stripViaEl = document.getElementById('stripVia');
-    if (stripViaEl) {
-      stripViaEl.textContent = viaTxt;
-      stripViaEl.className = viaTxt.includes('中继') ? 'warn' : viaTxt.includes('直连') ? 'good' : '';
     }
   }
   lastSent = vidOut;

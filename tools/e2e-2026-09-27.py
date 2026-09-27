@@ -48,10 +48,10 @@ with sync_playwright() as p:
     pg_host.click('#copyBtn')
     pg_host.wait_for_timeout(400)
     check('复制反馈', '已复制' in pg_host.locator('#copyBtnLabel').inner_text())
-    check('stats 条可见', pg_host.locator('#liveStats').is_visible())
+    check('顶部 7 项数据齐活', pg_host.locator('#liveStrip .strip-stat').count() == 7 and pg_host.locator('#liveStats').count() == 0)
     check('顶部状态栏常驻（状态+帧率+结束共享在顶部）', pg_host.locator('#liveStrip').is_visible() and pg_host.locator('#stripState').inner_text() == '直播中' and pg_host.locator('#liveStrip #stopBtn').is_visible())
     pg_host.wait_for_timeout(2500)
-    check('顶部采集帧率开播即有数', pg_host.locator('#stripFps').inner_text() not in ('—', '-', ''), pg_host.locator('#stripFps').inner_text())
+    check('顶部采集帧率开播即有数', pg_host.locator('#stFps').inner_text() not in ('—', '-', ''), pg_host.locator('#stFps').inner_text())
     check('顶部计时走字', pg_host.locator('#stripClock').inner_text() != '00:00', pg_host.locator('#stripClock').inner_text())
     # 录制按钮
     pg_host.click('#recBtn')
@@ -82,7 +82,7 @@ with sync_playwright() as p:
     pg_host.wait_for_timeout(400)
     check('主播看到观众行', '测试观众' in pg_host.locator('#viewerList').inner_text())
     pg_host.wait_for_timeout(2500)
-    check('有观众后顶部帧率持续', pg_host.locator('#stripFps').inner_text() not in ('—', '', '-'), pg_host.locator('#stripFps').inner_text())
+    check('有观众后顶部帧率持续', pg_host.locator('#stFps').inner_text() not in ('—', '', '-'), pg_host.locator('#stFps').inner_text())
     pg_host.screenshot(path=str(OUT / '02b-host-people.png'))
 
     # ---------- 聊天双向 ----------
