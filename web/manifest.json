@@ -1,0 +1,13 @@
+{
+  "name": "同屏 · 屏幕共享与通话",
+  "short_name": "同屏",
+  "description": "8 人内互动屏幕共享，边看边聊，画面 P2P 直达。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f6f3",
+  "theme_color": "#1c3f32",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

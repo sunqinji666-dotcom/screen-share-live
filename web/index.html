@@ -1,32 +1,49 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-build="09-27 16:11">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>屏幕共享 · 通话</title>
-<style>
-  :root { color-scheme: dark; }
-  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: -apple-system, "PingFang SC", sans-serif; background: #101014; color: #e8e8ee; }
-  .box { max-width: 520px; padding: 32px 24px; text-align: center; }
-  h1 { font-size: 24px; margin: 0 0 12px; }
-  p { color: #8a8a99; font-size: 14px; line-height: 1.8; }
-  a { color: #9cc0ff; text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  .entry { display: inline-block; margin: 10px 8px 0; padding: 10px 22px; background: #1c1c23; border: 1px solid #26262e; border-radius: 10px; font-size: 14px; color: #e8e8ee; }
-  .entry:hover { border-color: #2e6bff; text-decoration: none; }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>同屏 · 屏幕共享与通话</title>
+<meta name="theme-color" content="#1c3f32">
+<meta name="description" content="同屏：8 人内互动屏幕共享，边看边聊，画面 P2P 直达。">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231c3f32'/%3E%3Ctext x='32' y='44' font-size='32' font-weight='700' text-anchor='middle' fill='%23e9f1e9' font-family='PingFang SC'%3E%E5%90%8C%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="theme.css">
+<script src="assets/lucide.min.js"></script>
 </head>
 <body>
-<div class="box">
-  <h1>屏幕共享 · 通话</h1>
-  <p>观众：直接点主播发来的链接即可。</p>
-  <a class="entry" href="/host.html">🎥 互动开播（8人内 · 能对话）</a>
-  <a class="entry" href="https://zhibo2.jack-sun.com:8443/host.html">📺 大直播（很多人看 · 高清）</a>
-  <a class="entry" href="/admin.html">⚙️ 管理后台</a>
-  <p style="margin-top:16px;font-size:13px;line-height:1.9">
-    <b style="color:#e8e8ee">互动开播</b>：人少、要互相说话时用，最多 8 人，延迟极低。<br>
-    <b style="color:#e8e8ee">大直播</b>：很多人同时看高清画面时用，观众看直播但不开麦。
-  </p>
-</div>
+<main class="landing">
+  <span class="brand-mark"><i data-lucide="screen-share"></i></span>
+  <h1>同屏</h1>
+  <p class="landing-sub">把你的屏幕变成一场见面。观众点链接就看，能对话、能回应、能收文件。</p>
+  <div class="landing-cta"><a class="button primary" href="/host.html">开始互动开播<i data-lucide="arrow-right"></i></a></div>
+  <div class="entry-grid">
+    <a class="entry-card" href="/host.html">
+      <span class="entry-icon"><i data-lucide="monitor-up"></i></span>
+      <strong>互动开播</strong>
+      <small>8 人以内 · 双向通话 · 低延迟<br>边讲边聊，适合汇报和讨论</small>
+      <span class="entry-arrow"><i data-lucide="arrow-up-right"></i></span>
+    </a>
+    <a class="entry-card" href="https://zhibo2.jack-sun.com:8443/host.html">
+      <span class="entry-icon"><i data-lucide="radio"></i></span>
+      <strong>大直播</strong>
+      <small>很多人同时看 · 高清稳定<br>观众看画面，不占麦</small>
+      <span class="entry-arrow"><i data-lucide="arrow-up-right"></i></span>
+    </a>
+    <a class="entry-card" href="/admin.html">
+      <span class="entry-icon"><i data-lucide="settings-2"></i></span>
+      <strong>管理后台</strong>
+      <small>生成访客密码 · 管理直播间</small>
+      <span class="entry-arrow"><i data-lucide="arrow-up-right"></i></span>
+    </a>
+  </div>
+  <p class="landing-foot">观众不用装任何 App · 微信里直接打开 · 构建 09-27 16:11</p>
+</main>
+<script>
+(function () {
+  const run = () => { if (window.lucide) window.lucide.createIcons({ attrs: { 'stroke-width': 1.75 } }); };
+  if (window.lucide) run(); else window.addEventListener('load', run);
+})();
+</script>
 </body>
 </html>

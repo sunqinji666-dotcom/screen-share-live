@@ -1,9 +1,13 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-build="__BUILD__">
+<html lang="zh-CN" data-build="09-27 16:17">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>屏幕共享 · 观看</title>
+<title>同屏 · 观看</title>
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231c3f32'/%3E%3Ctext x='32' y='44' font-size='32' font-weight='700' text-anchor='middle' fill='%23e9f1e9' font-family='PingFang SC'%3E%E5%90%8C%3C/text%3E%3C/svg%3E">
+<script src="assets/lucide.min.js"></script>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -110,6 +114,39 @@
   #chatInput { flex: 1; font: inherit; font-size: 14px; padding: 10px 12px; border-radius: 10px; border: 1px solid #33333d; background: #1c1c23; color: #e8e8ee; }
   #chatSend { padding: 10px 18px; border-radius: 10px; }
 </style>
+<style>
+/* 同屏 2026-09-27 主题升级：主色绿 + 加入页新视觉 + 表情回应 */
+:root{--green:#285b48;--green-deep:#1c3f32;--canvas:#f5f6f3;--ink:#24332d;--muted:#727a75;--line:#e4e8e2}
+#joinBtn{background:var(--green)}
+#fpDownload{background:var(--green)}
+.chm .fdl{background:rgba(40,91,72,.25);color:#8fc7a8}
+.dm b{color:#8fc7a8}
+.chm b{color:#8fc7a8}
+#bar button.active{background:rgba(40,91,72,.38)}
+#joinScreen{background:var(--canvas);color:var(--ink)}
+#joinScreen h2{font-size:24px;letter-spacing:-.4px;color:var(--ink);font-weight:650}
+#joinScreen p{color:var(--muted);font-size:13.5px;line-height:1.8;margin:10px 0 0}
+.join-card{width:min(400px,100%);background:#fff;border:1px solid var(--line);border-radius:20px;padding:32px 28px 26px;text-align:center;box-shadow:0 1px 2px rgba(28,63,50,.05),0 10px 32px rgba(28,63,50,.08)}
+.join-brand{display:flex;align-items:center;justify-content:center;gap:9px;font-weight:650;font-size:16px;margin-bottom:20px;color:var(--ink)}
+.join-mark{width:36px;height:36px;border-radius:11px;background:var(--green-deep);color:#e9f1e9;display:inline-flex;align-items:center;justify-content:center}
+.join-mark .icon{width:19px;height:19px}
+.join-kicker{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:650;letter-spacing:.08em;color:var(--green);background:#e9f1e9;border-radius:999px;padding:5px 14px;margin-bottom:14px}
+.join-dot{width:8px;height:8px;border-radius:50%;background:#2e7d4f}
+#nameInput{width:100%;margin-bottom:12px}
+#joinBtn{width:100%;font-size:15px;padding:13px 0;border-radius:13px;font-weight:650}
+#reactPanel{position:fixed;left:10px;right:10px;bottom:calc(84px + env(safe-area-inset-bottom));background:rgba(18,18,24,.92);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:10px;display:none;gap:6px;justify-content:space-around;z-index:56}
+#reactPanel.open{display:flex}
+#reactPanel button{font-size:26px;background:none;border:0;padding:8px 10px;border-radius:12px;cursor:pointer}
+#reactPanel button:active{background:rgba(255,255,255,.12);transform:scale(1.18)}
+#bar button .ico{display:flex;align-items:center;justify-content:center}
+#bar button .icon{width:22px;height:22px;stroke-width:1.75}
+#filePopup .fico .icon{width:36px;height:36px}
+#flipBtn .icon{width:15px;height:15px}
+#nameInput{padding:12px 14px;border-radius:12px;border:1px solid #d8ddd6;background:#fbfcfb;color:var(--ink);font-size:14.5px;text-align:center;transition:border-color 140ms}
+#nameInput:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(40,91,72,.12)}
+#joinBtn{border:0}
+</style>
+
 </head>
 <body>
 <video id="video" autoplay playsinline muted></video>
@@ -122,17 +159,19 @@
 <div id="tapHint"><div class="play">▶</div><div>点一下开始播放</div></div>
 
 <div id="bar">
-  <button id="muteBtn"><span class="ico">🎙️</span><span>麦克风</span></button>
-  <button id="camBtn"><span class="ico">📷</span><span>摄像头</span></button>
+  <button id="muteBtn"><span class="ico"><i data-lucide="mic"></i></span><span>麦克风</span></button>
+  <button id="camBtn"><span class="ico"><i data-lucide="video"></i></span><span>摄像头</span></button>
   <button id="chatBtn"><span class="ico">💬</span><span>聊天</span></button>
-  <button id="boostBtn"><span class="ico">🚀</span><span>提速</span></button>
-  <button id="fullBtn"><span class="ico">⛶</span><span>全屏</span></button>
-  <button id="hangBtn" class="danger"><span class="ico">✕</span><span>挂断</span></button>
+  <button id="reactBtn"><span class="ico"><i data-lucide="party-popper"></i></span><span>回应</span></button>
+  <button id="boostBtn"><span class="ico"><i data-lucide="rocket"></i></span><span>提速</span></button>
+  <button id="fullBtn"><span class="ico"><i data-lucide="maximize"></i></span><span>全屏</span></button>
+  <button id="hangBtn" class="danger"><span class="ico"><i data-lucide="x"></i></span><span>挂断</span></button>
   <div id="ver" style="font-size:9px;color:#55555e;white-space:nowrap;align-self:center;writing-mode:vertical-rl"></div>
 </div>
+<div id="reactPanel"><button data-emoji="👍">👍</button><button data-emoji="👏">👏</button><button data-emoji="❤️">❤️</button><button data-emoji="😂">😂</button><button data-emoji="😮">😮</button><button data-emoji="🙋">🙋</button></div>
 <div id="toast"></div>
 <div id="filePopup">
-  <div class="fico">📎</div>
+  <div class="fico"><i data-lucide="paperclip"></i></div>
   <div class="fname" id="fpName"></div>
   <div class="fsize" id="fpSize"></div>
   <div class="frow">
@@ -141,7 +180,7 @@
   </div>
 </div>
 <video id="pipHost" muted autoplay playsinline></video>
-<div id="selfCamBox"><video id="pipSelf" muted autoplay playsinline></video><button id="flipBtn">🔄</button></div>
+<div id="selfCamBox"><video id="pipSelf" muted autoplay playsinline></video><button id="flipBtn"><i data-lucide="refresh-cw"></i></button></div>
 
 <div id="danmaku"></div>
 <div id="chatOverlay">
@@ -155,13 +194,15 @@
   </div>
 </div>
 
-<div id="joinScreen">
-  <h2>有人想给你看他的屏幕</h2>
-  <p>点下方按钮加入。加入后你能看到对方的屏幕，<br>并且可以开口对话（会用到你的麦克风）。</p>
-  <input id="nameInput" placeholder="你的称呼（对方会看到）" maxlength="12"
-    style="font:inherit;font-size:14px;padding:10px 14px;border-radius:999px;border:1px solid #33333d;background:#1c1c23;color:#e8e8ee;width:240px;text-align:center">
-  <button id="joinBtn">加入观看</button>
-  <div style="font-size:10px;color:#55555e" id="ver"></div>
+<div id="joinScreen" class="show">
+  <div class="join-card">
+    <div class="join-brand"><span class="join-mark"><i data-lucide="screen-share"></i></span>同屏</div>
+    <div class="join-kicker"><span class="join-dot"></span>共享邀请</div>
+    <h2>有人想给你看他的屏幕</h2>
+    <p class="join-desc">加入后你能看到对方的屏幕，<br>并且可以开口对话（会用到你的麦克风）。</p>
+    <input id="nameInput" placeholder="你的称呼（对方会看到）" maxlength="12" autocomplete="nickname">
+    <button id="joinBtn">加入观看</button>
+  </div>
 </div>
 
 <script>
@@ -547,7 +588,7 @@ function handleSignal(data) {
     if (micTrack) micTrack.enabled = !mutedByHost;
     selfMuted = mutedByHost;
     $('muteBtn').classList.toggle('muted', selfMuted);
-    $('muteBtn').querySelector('.ico').textContent = selfMuted ? '🔇' : '🎙️';
+    const muteIcoH = $('muteBtn').querySelector('.ico'); muteIcoH.innerHTML = '<i data-lucide="' + (selfMuted ? 'mic-off' : 'mic') + '"></i>'; if (window.lucide) window.lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
     if (pc && pc.connectionState === 'connected') {
       setTop('on', mutedByHost ? '已连接 · 主播已将你静音' : '已连接 · 麦克风已开启');
     }
@@ -654,7 +695,7 @@ async function showDiag() {
 }
 
 // ---------- 控件 ----------
-$('joinBtn').onclick = join;
+if ($('joinBtn')) $('joinBtn').onclick = join;
 // 把自己的麦克风状态上报给主播（他那边实时显示「他闭了麦/正在说话」）
 function sendMicState() {
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -666,7 +707,7 @@ $('muteBtn').onclick = () => {
   selfMuted = !selfMuted;
   if (micTrack) micTrack.enabled = !selfMuted;
   $('muteBtn').classList.toggle('muted', selfMuted);
-  $('muteBtn').querySelector('.ico').textContent = selfMuted ? '🔇' : '🎙️';
+  const muteIcoC = $('muteBtn').querySelector('.ico'); muteIcoC.innerHTML = '<i data-lucide="' + (selfMuted ? 'mic-off' : 'mic') + '"></i>'; if (window.lucide) window.lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
   if (pc && pc.connectionState === 'connected') {
     setTop('on', `已连接 · 麦克风${selfMuted ? '已闭麦' : '已开启'}`);
   }
@@ -1101,6 +1142,32 @@ if (AUTOSTART && room) {
     }, 500);
   }
 }
+
+// ==================== 2026-09-27 新增：表情回应 ====================
+const reactBtnEl = document.getElementById('reactBtn');
+if (reactBtnEl) reactBtnEl.onclick = () => {
+  document.getElementById('reactPanel').classList.toggle('open');
+};
+document.querySelectorAll('#reactPanel button').forEach((b) => {
+  b.addEventListener('click', () => {
+    const emo = b.dataset.emoji;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try { ws.send(JSON.stringify({ t: 'signal', data: { control: 'react', emoji: emo } })); showToast('已发送 ' + emo); }
+      catch (_) { showToast('发送失败'); }
+    } else {
+      showToast('还没有进入直播');
+    }
+    document.getElementById('reactPanel').classList.remove('open');
+  });
+});
+document.addEventListener('click', (e) => {
+  const p = document.getElementById('reactPanel');
+  if (p && p.classList.contains('open') && !p.contains(e.target) && !(e.target.closest && e.target.closest('#reactBtn'))) p.classList.remove('open');
+});
+(function refreshIconsV() {
+  const run = () => { if (window.lucide) window.lucide.createIcons({ attrs: { 'stroke-width': 1.75 } }); };
+  if (window.lucide) run(); else window.addEventListener('load', run);
+})();
 </script>
 </body>
 </html>
