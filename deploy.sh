@@ -10,7 +10,8 @@ STAGE=/tmp/ssl-deploy
 rm -rf "$STAGE"
 cp -R web "$STAGE"
 for f in "$STAGE"/*.html; do
-  sed -i '' "s/__BUILD__/$BUILD/g" "$f"
+  # 兼容已注入过构建号的文件：先把旧构建号还原为占位符再注入，保证每次部署都刷新
+  sed -i '' -E "s/构建 [0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}/构建 __BUILD__/g; s/__BUILD__/$BUILD/g" "$f"
 done
 
 rsync -az "$STAGE/" jacksun-tencent:screen-share-live/web/
