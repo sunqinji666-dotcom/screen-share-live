@@ -48,6 +48,10 @@ with sync_playwright() as p:
     pg_host.wait_for_timeout(400)
     check('复制反馈', '已复制' in pg_host.locator('#copyBtnLabel').inner_text())
     check('stats 条可见', pg_host.locator('#liveStats').is_visible())
+    check('顶部状态栏常驻（状态+帧率+结束共享在顶部）', pg_host.locator('#liveStrip').is_visible() and pg_host.locator('#stripState').inner_text() == '直播中' and pg_host.locator('#liveStrip #stopBtn').is_visible())
+    pg_host.wait_for_timeout(2500)
+    check('顶部采集帧率开播即有数', pg_host.locator('#stripFps').inner_text() not in ('—', '-', ''), pg_host.locator('#stripFps').inner_text())
+    check('顶部计时走字', pg_host.locator('#stripClock').inner_text() != '00:00', pg_host.locator('#stripClock').inner_text())
     # 录制按钮
     pg_host.click('#recBtn')
     pg_host.wait_for_timeout(1300)
@@ -69,12 +73,15 @@ with sync_playwright() as p:
     pg_view.wait_for_function("document.title === 'V:connected'", timeout=20000)
     check('观众接入（V:connected）', True)
     pg_view.wait_for_timeout(1200)
+    check('观众端顶栏挂断按钮可见', pg_view.locator('#topHang').is_visible())
     pg_view.screenshot(path=str(OUT / '05-viewer-watching.png'))
 
     # 主播端成员面板应出现观众行
     pg_host.click('#tab-people')
     pg_host.wait_for_timeout(400)
     check('主播看到观众行', '测试观众' in pg_host.locator('#viewerList').inner_text())
+    pg_host.wait_for_timeout(2500)
+    check('有观众后顶部帧率持续', pg_host.locator('#stripFps').inner_text() not in ('—', '', '-'), pg_host.locator('#stripFps').inner_text())
     pg_host.screenshot(path=str(OUT / '02b-host-people.png'))
 
     # ---------- 聊天双向 ----------

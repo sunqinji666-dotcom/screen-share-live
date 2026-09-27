@@ -42,6 +42,12 @@ script = patch(script, [
     # P1 混音台声明加 recDest（录制取混音用）
     ("let mixCtx = null, micGainNode = null, sysGainNode = null; // 混音台：两条音轨各一道增益",
      "let mixCtx = null, micGainNode = null, sysGainNode = null, recDest = null; // 混音台：两条音轨各一道增益；recDest 供本地录制取混音"),
+    # P1b liveSince 声明提前（autostart 会同步调用 start()，声明必须在其词法之前）
+    ("""let ws = null;
+let wsRetry = 0;""",
+     """let liveSince = null; // 顶部状态栏计时起点（P19 设、P20 清）
+let ws = null;
+let wsRetry = 0;"""),
     # P2 start() 里麦克风初始状态 → label
     ("""    micMuted = false;
     $('micBtn').textContent = '闭麦';
@@ -70,6 +76,10 @@ script = patch(script, [
   const stageDotEl = document.getElementById('stageDot');
   if (stageStatusEl && (on || text === '未开播')) stageStatusEl.textContent = on ? '直播中 · 画面与声音实时送达观众' : '未开播 · 画面与声音仅本机可见';
   if (stageDotEl) stageDotEl.className = 'status-dot' + (on ? '' : ' off');
+  const stripStateEl = document.getElementById('stripState');
+  if (stripStateEl && (on || text === '未开播')) stripStateEl.textContent = on ? '直播中' : '未开播';
+  const stripDotEl = document.getElementById('stripDot');
+  if (stripDotEl) stripDotEl.className = 'status-dot' + (on ? '' : ' off');
 }"""),
     # P5a stop() 先收录制
     ("""function stop() {
@@ -156,6 +166,65 @@ function sendChat() {"""),
     # P14 文件面板登记
     ("  addFileMsg(msgId, f.name, f.size, '准备上传…', '');",
      "  addFileMsg(msgId, f.name, f.size, '准备上传…', '');\n  trackFile(msgId, f.name, f.size);"),
+    # P23 无观众时也显示采集帧率（原版直接 return，主播开播后顶部/统计条全空）
+    ("""setInterval(async () => {
+  if (!peers.size) { $('stats').textContent = ''; lastStatsTs = 0; return; }""",
+     """setInterval(async () => {
+  if (!peers.size) {
+    // 无观众：没有推流统计，但屏幕采集在进行——显示采集帧率，主播开播即有数
+    if (screenTrack) {
+      const capFps0 = screenTrack.getSettings().frameRate;
+      const fpsTxt = capFps0 ? String(Math.round(capFps0)) : '-';
+      setStat('stFps', fpsTxt);
+      setStat('stCap', fpsTxt);
+      setStat('stRes', '—');
+      setStat('stRate', '—');
+      setStat('stRtt', '—');
+      const viaEl0 = document.getElementById('stVia');
+      if (viaEl0) { viaEl0.textContent = '—'; viaEl0.className = ''; }
+    }
+    $('stats').textContent = '';
+    lastStatsTs = 0;
+    return;
+  }"""),
+    ("""function setStat(id, val) {
+  const el = document.getElementById(id);
+  if (!el || el.textContent === String(val)) return;
+  el.textContent = String(val);
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 650);
+}""",
+     """const STAT_MIRROR = { stFps: 'stripFps', stRate: 'stripRate', stRtt: 'stripRtt' };
+function setStat(id, val) {
+  const el = document.getElementById(id);
+  if (el && el.textContent !== String(val)) {
+    el.textContent = String(val);
+    el.classList.remove('flash');
+    void el.offsetWidth;
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 650);
+  }
+  const mirrorEl = document.getElementById(STAT_MIRROR[id] || '');
+  if (mirrorEl && mirrorEl.textContent !== String(val)) mirrorEl.textContent = String(val);
+}"""),
+    # P22 stVia 镜像（线路色同步）
+    ("""    const viaEl = document.getElementById('stVia');
+    if (viaEl) {
+      viaEl.textContent = viaTxt;
+      viaEl.className = viaTxt.includes('中继') ? 'warn' : viaTxt.includes('直连') ? 'good' : '';
+    }""",
+     """    const viaEl = document.getElementById('stVia');
+    if (viaEl) {
+      viaEl.textContent = viaTxt;
+      viaEl.className = viaTxt.includes('中继') ? 'warn' : viaTxt.includes('直连') ? 'good' : '';
+    }
+    const stripViaEl = document.getElementById('stripVia');
+    if (stripViaEl) {
+      stripViaEl.textContent = viaTxt;
+      stripViaEl.className = viaTxt.includes('中继') ? 'warn' : viaTxt.includes('直连') ? 'good' : '';
+    }"""),
     # P19 开播成功 → 舞台标签切"直播中"（锚定真实采集流，不随瞬时提示漂移；
     # sourceTag 不挂 setBadge——摄像头等瞬时提示会把"直播中"打回"待开播"）
     ("""    $('preview').srcObject = screenStream;
@@ -164,13 +233,15 @@ function sendChat() {"""),
      """    $('preview').srcObject = screenStream;
     $('preview').style.display = 'block';
     $('liveStats').style.display = 'block';
-    $('sourceTag').textContent = '直播中';"""),
-    # P20 结束 → 舞台标签复位 + 观众列表重置为空态（新版 stop 后可再开一场）
+    $('sourceTag').textContent = '直播中';
+    liveSince = Date.now(); // 顶部状态栏计时起点"""),
+    # P20 结束 → 舞台标签复位 + 观众列表重置为空态（新版 stop 后可再开一场）+ 计时清零
     ("""  $('liveStats').style.display = 'none';
   myMeterBuf = null;""",
      """  $('liveStats').style.display = 'none';
   $('sourceTag').textContent = '待开播';
   $('viewerList').innerHTML = '<p id="viewerEmpty">暂无观众</p>';
+  liveSince = null;
   myMeterBuf = null;"""),
     # P16 观众行状态中文化（connectionState 英文 → 中文）
     ("      vs.textContent = `${pc.connectionState} · ${voice}`;",
@@ -197,6 +268,14 @@ function sendChat() {"""),
 
 EXTRA = """
 // ==================== 2026-09-27 新增：toast / 面板 / 截图 / 录制 / 文件面板 / 快捷键 ====================
+setInterval(() => {
+  const c = document.getElementById('stripClock');
+  if (!c) return;
+  if (!liveSince) { if (c.textContent !== '00:00') c.textContent = '00:00'; return; }
+  const s = Math.floor((Date.now() - liveSince) / 1000);
+  const t = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  if (c.textContent !== t) c.textContent = t;
+}, 1000);
 let toastTimer2 = null;
 function showToast(text) {
   const el = document.getElementById('toast');
@@ -365,6 +444,20 @@ HOST_BODY = """<header class="topbar">
   </div>
 </header>
 <main class="page-body">
+  <div id="liveStrip" class="live-strip">
+    <div class="live-strip-status">
+      <span class="status-dot off" id="stripDot"></span>
+      <strong id="stripState">未开播</strong>
+      <time id="stripClock" class="mono">00:00</time>
+    </div>
+    <div class="live-strip-stats">
+      <span class="strip-stat">帧率 <b id="stripFps">—</b></span>
+      <span class="strip-stat">速率 <b id="stripRate">—</b></span>
+      <span class="strip-stat">延迟 <b id="stripRtt">—</b></span>
+      <span class="strip-stat">线路 <b id="stripVia">—</b></span>
+    </div>
+    <button id="stopBtn" class="button danger" disabled><i data-lucide="phone-off"></i>结束共享</button>
+  </div>
   <section class="room-heading">
     <div>
       <div class="heading-title"><h1>互动开播</h1></div>
@@ -478,7 +571,6 @@ HOST_BODY = """<header class="topbar">
       <span class="dock-divider" aria-hidden="true"></span>
       <div class="control-item"><button id="volBtn" title="音频推子与观众控制" aria-label="音频台"><i data-lucide="sliders-horizontal"></i></button><span class="control-label">音频台</span></div>
     </div>
-    <button id="stopBtn" class="end-button" disabled><i data-lucide="phone-off"></i><span>结束共享</span></button>
   </section>
   <footer class="page-footer">
     <span class="footer-left"><i data-lucide="info"></i><span>画面走浏览器 P2P 直连，服务器只负责牵线</span></span>
@@ -541,6 +633,9 @@ VIEWER_OVERRIDE = """<style>
 #nameInput{padding:12px 14px;border-radius:12px;border:1px solid #d8ddd6;background:#fbfcfb;color:var(--ink);font-size:14.5px;text-align:center;transition:border-color 140ms}
 #nameInput:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(40,91,72,.12)}
 #joinBtn{border:0}
+#topHang{margin-left:10px;width:34px;height:34px;border-radius:50%;border:0;background:rgba(224,82,82,.18);color:#ff8484;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer}
+#topHang:active{background:rgba(224,82,82,.35)}
+#topHang .icon{width:17px;height:17px}
 </style>
 """
 
@@ -635,6 +730,22 @@ viewer = patch(viewer, [
      """    const muteIcoH = $('muteBtn').querySelector('.ico'); muteIcoH.innerHTML = '<i data-lucide="' + (selfMuted ? 'mic-off' : 'mic') + '"></i>'; if (window.lucide) window.lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });"""),
     ("""  $('muteBtn').querySelector('.ico').textContent = selfMuted ? '🔇' : '🎙️';""",
      """  const muteIcoC = $('muteBtn').querySelector('.ico'); muteIcoC.innerHTML = '<i data-lucide="' + (selfMuted ? 'mic-off' : 'mic') + '"></i>'; if (window.lucide) window.lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });"""),
+    # V11 顶部状态栏右侧加挂断（最重要的操作放顶部，底部控制条保留）
+    ("""<div id="topbar">
+  <span id="dot" class="dot off"></span><span id="topStatus">未连接</span>
+  <span id="topMeta"></span>
+</div>""",
+     """<div id="topbar">
+  <span id="dot" class="dot off"></span><span id="topStatus">未连接</span>
+  <span id="topMeta"></span>
+  <button id="topHang" aria-label="挂断" title="挂断"><i data-lucide="phone-off"></i></button>
+</div>"""),
+    # V12 顶部挂断绑定（复用底部挂断逻辑）
+    ("""// ==================== 2026-09-27 新增：表情回应 ====================""",
+     """// ==================== 2026-09-27 新增：顶部挂断 + 表情回应 ====================
+const topHangEl = document.getElementById('topHang');
+if (topHangEl) topHangEl.onclick = () => { const hb = document.getElementById('hangBtn'); if (hb) hb.click(); };
+// ==================== 表情回应 ===================="""),
 ], 'viewer')
 
 (WEB / 'viewer.html').write_text(viewer)

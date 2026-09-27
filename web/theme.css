@@ -262,6 +262,18 @@ body.viewer-dark{background:#000;color:#e8e8ee}
 #panel-chat>.chat-inner{display:flex;flex-direction:column;flex:1;min-height:0}
 .sent-list{display:flex;flex-direction:column;gap:8px}
 
+/* ---------- 顶部直播状态栏（帧率/状态/挂断 = 最重要的信息，常驻顶部） ---------- */
+.live-strip{display:flex;align-items:center;gap:16px;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:11px 18px;box-shadow:var(--shadow);margin-bottom:14px;flex-wrap:wrap}
+.live-strip-status{display:flex;align-items:center;gap:9px;min-width:0}
+.live-strip-status strong{font-size:14px;font-weight:650}
+.live-strip-status time{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;background:#f2f4f0;border-radius:8px;padding:2px 9px}
+.live-strip-stats{display:flex;gap:8px;flex-wrap:wrap;flex:1;min-width:0}
+.strip-stat{font-size:12px;color:var(--muted);background:#f7f8f6;border:1px solid var(--line);border-radius:9px;padding:4px 10px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.strip-stat b{font-family:ui-monospace,Menlo,monospace;font-weight:600;color:var(--ink)}
+.strip-stat b.good{color:var(--good)}
+.strip-stat b.warn{color:var(--warn)}
+.live-strip .button{flex-shrink:0;padding:9px 18px;font-size:13px}
+
 /* ---------- 直播条（开播后常驻：链接一眼可及 + 一键复制） ---------- */
 .live-bar{display:none;align-items:center;gap:14px;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;box-shadow:var(--shadow);margin-bottom:14px;flex-wrap:wrap}
 .live-bar.show{display:flex}
@@ -312,6 +324,10 @@ td .ops{display:flex;gap:6px;flex-wrap:wrap}
 }
 @media (max-width:640px){
   .heading-title h1{font-size:19px}
+  .live-strip{gap:10px;padding:9px 12px}
+  .live-strip-stats{order:3;width:100%}
+  .strip-stat{font-size:11px;padding:3px 8px}
+  .live-strip .button{padding:8px 14px;font-size:12px}
   .control-item{min-width:52px}
   .control-item>button{width:46px;height:46px}
   .control-label{font-size:10.5px}

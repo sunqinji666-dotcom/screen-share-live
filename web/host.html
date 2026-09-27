@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-build="09-27 17:05">
+<html lang="zh-CN" data-build="09-27 17:16">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -19,6 +19,20 @@
   </div>
 </header>
 <main class="page-body">
+  <div id="liveStrip" class="live-strip">
+    <div class="live-strip-status">
+      <span class="status-dot off" id="stripDot"></span>
+      <strong id="stripState">未开播</strong>
+      <time id="stripClock" class="mono">00:00</time>
+    </div>
+    <div class="live-strip-stats">
+      <span class="strip-stat">帧率 <b id="stripFps">—</b></span>
+      <span class="strip-stat">速率 <b id="stripRate">—</b></span>
+      <span class="strip-stat">延迟 <b id="stripRtt">—</b></span>
+      <span class="strip-stat">线路 <b id="stripVia">—</b></span>
+    </div>
+    <button id="stopBtn" class="button danger" disabled><i data-lucide="phone-off"></i>结束共享</button>
+  </div>
   <section class="room-heading">
     <div>
       <div class="heading-title"><h1>互动开播</h1></div>
@@ -56,7 +70,7 @@
         </div>
         <div class="stage-bottom">
           <div class="stage-bottom-left"><span class="status-dot off" id="stageDot"></span><span id="stageStatus">未开播 · 画面与声音仅本机可见</span></div>
-          <span class="stage-footnote">构建 09-27 17:05 · screen-share-live</span>
+          <span class="stage-footnote">构建 09-27 17:16 · screen-share-live</span>
         </div>
       </section>
       <div id="liveStats" style="display:none;margin-top:2px"><div class="statrow">
@@ -132,7 +146,6 @@
       <span class="dock-divider" aria-hidden="true"></span>
       <div class="control-item"><button id="volBtn" title="音频推子与观众控制" aria-label="音频台"><i data-lucide="sliders-horizontal"></i></button><span class="control-label">音频台</span></div>
     </div>
-    <button id="stopBtn" class="end-button" disabled><i data-lucide="phone-off"></i><span>结束共享</span></button>
   </section>
   <footer class="page-footer">
     <span class="footer-left"><i data-lucide="info"></i><span>画面走浏览器 P2P 直连，服务器只负责牵线</span></span>
@@ -160,6 +173,7 @@ if (invitedCode) {
   $('secretInput').value = localStorage.getItem('ssl_secret'); // 上次用过的密钥自动回填
 }
 
+let liveSince = null; // 顶部状态栏计时起点（P19 设、P20 清）
 let ws = null;
 let wsRetry = 0;
 let room = null, hostToken = null;
@@ -296,16 +310,24 @@ function setBadge(text, on) {
   const stageDotEl = document.getElementById('stageDot');
   if (stageStatusEl && (on || text === '未开播')) stageStatusEl.textContent = on ? '直播中 · 画面与声音实时送达观众' : '未开播 · 画面与声音仅本机可见';
   if (stageDotEl) stageDotEl.className = 'status-dot' + (on ? '' : ' off');
+  const stripStateEl = document.getElementById('stripState');
+  if (stripStateEl && (on || text === '未开播')) stripStateEl.textContent = on ? '直播中' : '未开播';
+  const stripDotEl = document.getElementById('stripDot');
+  if (stripDotEl) stripDotEl.className = 'status-dot' + (on ? '' : ' off');
 }
 // 状态条单值更新：数值变化时高亮闪一下
+const STAT_MIRROR = { stFps: 'stripFps', stRate: 'stripRate', stRtt: 'stripRtt' };
 function setStat(id, val) {
   const el = document.getElementById(id);
-  if (!el || el.textContent === String(val)) return;
-  el.textContent = String(val);
-  el.classList.remove('flash');
-  void el.offsetWidth;
-  el.classList.add('flash');
-  setTimeout(() => el.classList.remove('flash'), 650);
+  if (el && el.textContent !== String(val)) {
+    el.textContent = String(val);
+    el.classList.remove('flash');
+    void el.offsetWidth;
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 650);
+  }
+  const mirrorEl = document.getElementById(STAT_MIRROR[id] || '');
+  if (mirrorEl && mirrorEl.textContent !== String(val)) mirrorEl.textContent = String(val);
 }
 
 // ---------- 测试用假源（?fake=1） ----------
@@ -411,6 +433,7 @@ async function start() {
     $('preview').style.display = 'block';
     $('liveStats').style.display = 'block';
     $('sourceTag').textContent = '直播中';
+    liveSince = Date.now(); // 顶部状态栏计时起点
     attachMyMeter(micSendTrack || micTrack); // 电平条显示推子后的实际发送电平
     $('micRow').style.display = 'flex';
     $('micVolRow').style.display = 'flex';
@@ -462,6 +485,7 @@ function stop() {
   $('liveStats').style.display = 'none';
   $('sourceTag').textContent = '待开播';
   $('viewerList').innerHTML = '<p id="viewerEmpty">暂无观众</p>';
+  liveSince = null;
   myMeterBuf = null;
   perViewerMuted.clear();
   $('stats').textContent = '';
@@ -1075,7 +1099,23 @@ $('spkBtn').onclick = () => {
 let lastSent = 0, lastStatsTs = 0, audioSeen = false, lastEncTime = null;
 const audioStat = new Map(); // vid -> { bytes, ts, kbps }
 setInterval(async () => {
-  if (!peers.size) { $('stats').textContent = ''; lastStatsTs = 0; return; }
+  if (!peers.size) {
+    // 无观众：没有推流统计，但屏幕采集在进行——显示采集帧率，主播开播即有数
+    if (screenTrack) {
+      const capFps0 = screenTrack.getSettings().frameRate;
+      const fpsTxt = capFps0 ? String(Math.round(capFps0)) : '-';
+      setStat('stFps', fpsTxt);
+      setStat('stCap', fpsTxt);
+      setStat('stRes', '—');
+      setStat('stRate', '—');
+      setStat('stRtt', '—');
+      const viaEl0 = document.getElementById('stVia');
+      if (viaEl0) { viaEl0.textContent = '—'; viaEl0.className = ''; }
+    }
+    $('stats').textContent = '';
+    lastStatsTs = 0;
+    return;
+  }
   const now = Date.now();
   let vidOut = 0, rtt = null, type = '', outFps = 0, capFps = 0, outH = 0, encTime = 0;
   for (const [vid, pc] of peers) {
@@ -1167,6 +1207,11 @@ setInterval(async () => {
       viaEl.textContent = viaTxt;
       viaEl.className = viaTxt.includes('中继') ? 'warn' : viaTxt.includes('直连') ? 'good' : '';
     }
+    const stripViaEl = document.getElementById('stripVia');
+    if (stripViaEl) {
+      stripViaEl.textContent = viaTxt;
+      stripViaEl.className = viaTxt.includes('中继') ? 'warn' : viaTxt.includes('直连') ? 'good' : '';
+    }
   }
   lastSent = vidOut;
   lastStatsTs = now;
@@ -1198,6 +1243,14 @@ if (AUTOSTART) {
 
 
 // ==================== 2026-09-27 新增：toast / 面板 / 截图 / 录制 / 文件面板 / 快捷键 ====================
+setInterval(() => {
+  const c = document.getElementById('stripClock');
+  if (!c) return;
+  if (!liveSince) { if (c.textContent !== '00:00') c.textContent = '00:00'; return; }
+  const s = Math.floor((Date.now() - liveSince) / 1000);
+  const t = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  if (c.textContent !== t) c.textContent = t;
+}, 1000);
 let toastTimer2 = null;
 function showToast(text) {
   const el = document.getElementById('toast');
