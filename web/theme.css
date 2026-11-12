@@ -336,7 +336,7 @@ td .ops{display:flex;gap:6px;flex-wrap:wrap}
 @media (max-width:640px){
   .heading-title h1{font-size:19px}
   .live-strip{gap:10px;padding:9px 12px}
-  .live-strip-stats{order:3;width:100%}
+  .live-strip-stats{order:3;flex:1 1 100%;width:100%}
   .strip-stat{font-size:11px;padding:3px 8px}
   .live-strip .button{padding:8px 14px;font-size:12px}
   .control-item{min-width:52px}
@@ -356,3 +356,29 @@ td .ops{display:flex;gap:6px;flex-wrap:wrap}
 @media (prefers-reduced-motion:reduce){
   *{transition:none !important;animation:none !important}
 }
+
+/* 2026-10-19：观众互通 / 二维码 / 全员静音 */
+#viewersCard>.card-title .card-ops{margin-left:auto;display:flex;gap:6px;letter-spacing:0}
+#viewersCard>.card-title .card-ops .opbtn{display:inline-flex;align-items:center;gap:4px}
+#partyBtn.active{background:var(--light-green);color:var(--green)}
+#qrPop{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;background:rgba(10,16,13,.55);padding:16px}
+#qrPop.show{display:flex}
+#qrPop .qr-card{background:var(--paper);color:var(--ink);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;width:min(320px,100%);text-align:center}
+#qrPop #qrBox{background:#fff;border-radius:10px;padding:10px;line-height:0}
+#qrPop #qrBox svg{width:100%;height:auto}
+#qrPop p{margin:12px 0 14px;color:var(--muted);font-size:13px}
+#partyBtn:not(.active){background:var(--danger-bg);border-color:#eed4d0;color:var(--danger)}
+
+/* ---------- 转 MP4 进度面板 ---------- */
+.mp4-panel{position:fixed;right:18px;bottom:18px;width:300px;max-width:calc(100vw - 36px);background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 14px;z-index:95;font-size:13px;color:var(--ink)}
+.mp4-panel[hidden]{display:none}
+.mp4-panel-head{display:flex;align-items:center;justify-content:space-between;font-weight:650}
+.mp4-panel-head button{background:none;border:0;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:0 2px}
+.mp4-panel-name{margin:6px 0 8px;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mp4-bar{height:6px;border-radius:99px;background:var(--field);overflow:hidden}
+.mp4-bar i{display:block;height:100%;width:0;background:var(--green);border-radius:99px;transition:width .2s}
+.mp4-panel-foot{display:flex;justify-content:space-between;gap:10px;margin-top:7px;font-size:12px;color:var(--muted)}
+.mp4-panel-foot span:first-child{font-family:ui-monospace,Menlo,monospace;color:var(--ink)}
+.mp4-panel.done .mp4-bar i{background:var(--good);width:100%}
+.mp4-panel.fail .mp4-bar i{background:var(--danger)}
+.mp4-panel.fail #mp4Title{color:var(--danger)}

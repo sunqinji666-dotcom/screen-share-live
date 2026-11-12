@@ -28,6 +28,15 @@
   .dot.wait { background: #f0b429; }
   .dot.off { background: #e05252; }
   #topStatus { font-weight: 600; }
+  #talkers { position: fixed; top: calc(100px + env(safe-area-inset-top)); left: 12px; max-width: calc(100% - 24px); background: rgba(18,18,24,.78); color: #e8fff1; padding: 6px 12px; border-radius: 999px; font-size: 12.5px; z-index: 55; pointer-events: none; opacity: 0; transition: opacity .25s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #talkers.show { opacity: 1; }
+  #zoomBadge { position: fixed; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: rgba(18,18,24,.82); color: #fff; padding: 6px 14px; border-radius: 999px; font-size: 12.5px; z-index: 56; display: none; border: 0; }
+  #zoomBadge.show { display: block; }
+  #talkers .wave { display: inline-block; margin-right: 6px; animation: talkPulse 1s ease-in-out infinite; }
+  @keyframes talkPulse { 50% { transform: scale(1.25); } }
+  .kick-count { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--green, #2f9e61); margin: 14px 0 4px; }
+  .kick-card #rejoinBtn { width: 100%; font-size: 15px; padding: 13px 0; border-radius: 13px; font-weight: 650; border: 0; background: var(--green, #2f9e61); color: #fff; margin-top: 16px; }
+  .kick-card #rejoinBtn:disabled { opacity: .45; }
   #topMeta { margin-left: auto; color: #a9a9b8; font-size: 12px; font-family: ui-monospace, Menlo, monospace; }
   /* 网络质量三档色：绿=正常 黄=注意 红=差 */
   .good { color: #34d17b; }
@@ -177,6 +186,8 @@
 </div>
 <div id="reactPanel"><button data-emoji="👍">👍</button><button data-emoji="👏">👏</button><button data-emoji="❤️">❤️</button><button data-emoji="😂">😂</button><button data-emoji="😮">😮</button><button data-emoji="🙋">🙋</button></div>
 <div id="toast"></div>
+<div id="talkers"></div>
+<button id="zoomBadge" aria-label="还原画面大小"></button>
 <div id="filePopup">
   <div class="fico"><i data-lucide="paperclip"></i></div>
   <div class="fname" id="fpName"></div>
@@ -205,7 +216,7 @@
   <div class="join-card">
     <div class="join-brand"><span class="join-mark"><i data-lucide="screen-share"></i></span>同屏</div>
     <div class="join-kicker"><span class="join-dot"></span>共享邀请</div>
-    <h2>有人想给你看他的屏幕</h2>
+    <h2>有人想给你看 TA 的屏幕</h2>
     <p class="join-desc">加入后你能看到对方的屏幕，<br>并且可以开口对话（会用到你的麦克风）。</p>
     <input id="nameInput" placeholder="你的称呼（对方会看到）" maxlength="12" autocomplete="nickname">
     <button id="joinBtn">加入观看</button>
@@ -334,7 +345,7 @@ function connectWS() {
     socket.send(JSON.stringify({
       t: 'view-join', room,
       name: localStorage.getItem('ssl_dname') || '',
-      desc: deviceDesc(),
+      desc: devDesc,
       did: deviceId(),
     }));
   };
@@ -370,19 +381,58 @@ function scheduleReconnect() {
   }, delay);
 }
 
-// 设备描述：从 UA 解析机型（iOS 不给具体型号，安卓常能给出型号名）
+// 设备描述：观众没填称呼时就用它当名字，尽量具体到机型
+// iPhone 的 UA 不带型号 → 按屏幕逻辑尺寸+像素密度推算机型档位；
+// 安卓新版 Chrome 把 UA 里的型号精简成「K」→ 先用 Client Hints 取真实型号，再按厂商型号编码补品牌
+const IPHONE_BY_SCREEN = {
+  '320x568@2': 'iPhone SE 一代', '375x667@2': 'iPhone 6s~8/SE', '414x736@3': 'iPhone 8 Plus',
+  '375x812@3': 'iPhone X/11 Pro/mini', '414x896@2': 'iPhone XR/11', '414x896@3': 'iPhone 11 Pro Max',
+  '390x844@3': 'iPhone 12~14', '428x926@3': 'iPhone 12~14 大屏', '393x852@3': 'iPhone 14 Pro~16',
+  '430x932@3': 'iPhone 15/16 Plus·Max', '402x874@3': 'iPhone 16 Pro/17', '440x956@3': 'iPhone 16/17 Pro Max',
+  '420x912@3': 'iPhone Air',
+};
+function iphoneModel() {
+  const w = Math.min(screen.width, screen.height), h = Math.max(screen.width, screen.height);
+  return IPHONE_BY_SCREEN[w + 'x' + h + '@' + Math.round(window.devicePixelRatio || 1)] || 'iPhone';
+}
+// 国内厂商型号编码 → 补品牌（看到「V2148A」认不出是 vivo）
+function brandModel(model) {
+  const m = String(model || '').replace(/_/g, ' ').trim();
+  if (!m || m === 'K' || /^(wv|Linux|Android)/i.test(m)) return '';
+  if (/^(HUAWEI|HONOR|Xiaomi|Redmi|POCO|OPPO|vivo|iQOO|OnePlus|realme|Meizu|MEIZU|Samsung|SM-|Pixel|nubia|ZTE|Lenovo|motorola|moto)/i.test(m)) {
+    return m.replace(/^SM-/i, '三星 SM-');
+  }
+  if (/^V\d{4}[A-Z]{0,2}$/i.test(m)) return 'vivo ' + m;
+  if (/^(P[A-Z]{2}\d{3}|PJ[A-Z]\d{3}|CPH\d{4})$/i.test(m)) return 'OPPO ' + m;
+  if (/^(RMX\d{4})$/i.test(m)) return 'realme ' + m;
+  if (/^\d{4,5}[A-Z0-9]{2,6}$/.test(m) || /^M\d{4}[A-Z]\d+[A-Z]*$/.test(m)) return '小米 ' + m;
+  if (/^[A-Z]{3}-[A-Z]{1,2}\d{2}[A-Z]?$/.test(m)) return '华为/荣耀 ' + m;
+  if (/^(PG|PE|PK)[A-Z]\d{3}$/i.test(m)) return 'OnePlus ' + m;
+  return m;
+}
 function deviceDesc() {
   const ua = navigator.userAgent;
-  if (/iPhone/.test(ua)) return 'iPhone';
-  if (/iPad/.test(ua)) return 'iPad';
+  if (/iPhone/.test(ua)) return iphoneModel();
+  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'iPad'; // iPadOS 伪装成 Mac
   let m = ua.match(/Android[^;)]*;\s*([^;)]+?)\s+Build\//);
-  if (m) return m[1].trim();
+  let b = m && brandModel(m[1]);
+  if (b) return b;
   m = ua.match(/Android[^;)]*;\s*([^;)]+?)\s*\)/);
-  if (m && m[1].trim() && m[1].indexOf('wv') !== 0) return m[1].trim();
+  b = m && brandModel(m[1]);
+  if (b) return b;
+  if (/HarmonyOS|OpenHarmony/i.test(ua)) return '华为鸿蒙手机';
   if (/Android/.test(ua)) return 'Android 手机';
   if (/Macintosh/.test(ua)) return 'Mac 电脑';
   if (/Windows/.test(ua)) return 'Windows 电脑';
   return '未知设备';
+}
+// 安卓 Chrome/Edge 新版：UA 里型号被精简，Client Hints 能拿到真实型号（异步，页面一打开就取，点加入时早已就绪）
+let devDesc = deviceDesc();
+if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues && /Android/.test(navigator.userAgent)) {
+  navigator.userAgentData.getHighEntropyValues(['model']).then((v) => {
+    const b = brandModel(v && v.model);
+    if (b) devDesc = b;
+  }).catch(() => {});
 }
 // 设备 ID：同一台手机无论点哪个链接都认得出（存在手机本地）
 function deviceId() {
@@ -403,7 +453,7 @@ function onMsg(m) {
     case 'signal': handleSignal(m.data); break;
     case 'host-offline': setStatus('主播暂时掉线，等待恢复…'); break;
     case 'chat': {
-      const who = m.from === 'host' ? '主播' : '观众 ' + m.from.slice(0, 4);
+      const who = m.from === 'host' ? '主播' : (m.name || '观众 ' + m.from.slice(0, 4));
       addChat(who, m.text, false, m.file || null);
       if (m.file) showFilePopup(m.file);
       if (!$('chatOverlay').classList.contains('open')) {
@@ -414,11 +464,11 @@ function onMsg(m) {
       break;
     }
     case 'bye':
+      intentionalClose = true;
       cleanup();
       $('joinScreen').style.display = 'flex';
-      $('joinScreen').innerHTML = m.reason === 'kicked'
-        ? '<h2>你已被主播移出</h2><p>本次直播无法继续观看。</p>'
-        : '<h2>直播已结束</h2><p>对方已挂断，链接已失效。</p>';
+      if (m.reason === 'kicked') { showKicked(+m.rest || KICK_REST_SEC); break; }
+      $('joinScreen').innerHTML = '<h2>直播已结束</h2><p>对方已挂断，链接已失效。</p>';
       setTop('off', '直播已结束');
       setTitle('V:ended');
       break;
@@ -428,6 +478,10 @@ function onMsg(m) {
         $('joinScreen').style.display = 'flex';
         $('joinScreen').innerHTML = '<h2>直播不在线</h2><p>对方还没开播，或链接已失效。</p>';
         setTitle('V:noroom');
+      } else if (m.msg === 'resting') {
+        intentionalClose = true;
+        $('joinScreen').style.display = 'flex';
+        showKicked(+m.left || KICK_REST_SEC);
       } else if (m.msg === 'room-full') {
         $('joinScreen').style.display = 'flex';
         $('joinScreen').innerHTML = '<h2>观众已满</h2><p>当前观看人数已达上限，请稍后再试。</p>';
@@ -483,6 +537,7 @@ function ensureViewerPC() {
   };
   pc.onconnectionstatechange = () => {
     if (pc.connectionState === 'connected') {
+      keepAwake();
       failedRestarts = 0;
       connectedAt = Date.now();
       setTop('on', mutedByHost ? '已连接 · 主播已将你静音' : '已连接 · 双向通话中');
@@ -589,6 +644,8 @@ function handleSignal(data) {
     hostCamOn = !!data.on;
     const p = document.getElementById('pipHost');
     if (p && p.srcObject) p.style.display = hostCamOn ? 'block' : 'none';
+  } else if (data.control === 'party') {
+    onPartyState(data);
   } else if (data.control === 'mic-muted') {
     // 主播端静音/恢复我的麦克风
     mutedByHost = !!data.on;
@@ -678,6 +735,11 @@ function cleanup() {
   if (box) { box.style.display = 'none'; $('pipSelf').srcObject = null; }
   const cb = document.getElementById('camBtn');
   if (cb) cb.classList.remove('active');
+  $('talkers').classList.remove('show');
+  partyKnown = null;
+  partyPeople = null;
+  resetZoom();
+  releaseWake();
 }
 
 // 线路诊断：连接失败时把自己的候选类型逐条亮出来，一眼看出中继有没有参与
@@ -803,6 +865,174 @@ $('pipHost').onclick = () => {
 };
 // ---------- 全屏：三级降级，保证「点了必有反应」 ----------
 let toastTimer = null;
+// ---------- 观众互通：主播把「其他观众的声音」混好发过来，这里只负责提示 ----------
+let partyKnown = null; // 上次的互通开关状态（null=还没收到过）
+let partyPeople = null; // 上次的在场名单 Map(id → 称呼)
+function onPartyState(d) {
+  const el = $('talkers');
+  if (partyKnown !== null && partyKnown !== d.on) showToast(d.on ? '主播开启了观众互通，大家可以互相聊天了' : '主播关闭了观众互通，现在只和主播通话');
+  else if (partyKnown === null && d.on && d.count >= 2) showToast('其他观众也能听到你说话哦 👋');
+  partyKnown = d.on;
+  const people = new Map(d.people || []);
+  if (partyPeople) {
+    const came = [...people.keys()].filter((id) => !partyPeople.has(id)).map((id) => people.get(id));
+    const went = [...partyPeople.keys()].filter((id) => !people.has(id)).map((id) => partyPeople.get(id));
+    if (came.length) showToast(came.slice(0, 2).join('、') + (came.length > 2 ? ' 等人' : '') + ' 进来了 👋');
+    else if (went.length) showToast(went.slice(0, 2).join('、') + (went.length > 2 ? ' 等人' : '') + ' 先走了');
+  }
+  partyPeople = people;
+  const names = (d.speaking || []).filter(Boolean);
+  if (names.length) {
+    const shown = names.slice(0, 3).join('、') + (names.length > 3 ? ' 等 ' + names.length + ' 人' : '');
+    el.innerHTML = '<span class="wave">🎙</span>';
+    el.appendChild(document.createTextNode(shown + ' 正在说话'));
+    el.classList.add('show');
+  } else {
+    el.classList.remove('show');
+  }
+}
+
+// ---------- 屏幕常亮：看直播时手机别自动锁屏（切回页面后系统会收回，要重新申请） ----------
+let wakeLock = null;
+async function keepAwake() {
+  try {
+    if (!('wakeLock' in navigator) || wakeLock || document.visibilityState !== 'visible') return;
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } catch (_) {}
+}
+function releaseWake() { try { if (wakeLock) wakeLock.release(); } catch (_) {} wakeLock = null; }
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && pc && pc.connectionState === 'connected') keepAwake();
+});
+
+// ---------- 画面放大：手机看电脑屏字太小 → 双指缩放、双击放大/还原、放大后单指拖动；电脑上滚轮缩放 ----------
+const zoom = { s: 1, x: 0, y: 0 };
+let lastDoubleTap = 0;
+let zoomTipShown = false;
+function zoomBox() {
+  const r = video.parentElement.getBoundingClientRect();
+  return { left: r.left + video.offsetLeft, top: r.top + video.offsetTop, w: video.offsetWidth, h: video.offsetHeight };
+}
+function applyZoom() {
+  const b = zoomBox();
+  zoom.s = Math.min(5, Math.max(1, zoom.s));
+  if (zoom.s < 1.02) { zoom.s = 1; zoom.x = zoom.y = 0; }
+  zoom.x = Math.min(0, Math.max(b.w - b.w * zoom.s, zoom.x)); // 不让画面拖出边界
+  zoom.y = Math.min(0, Math.max(b.h - b.h * zoom.s, zoom.y));
+  video.style.transformOrigin = '0 0';
+  video.style.transform = zoom.s === 1 ? '' : 'translate(' + zoom.x + 'px,' + zoom.y + 'px) scale(' + zoom.s + ')';
+  const badge = $('zoomBadge');
+  badge.textContent = '🔍 ' + zoom.s.toFixed(1) + '×  点这里还原';
+  badge.classList.toggle('show', zoom.s > 1);
+}
+function zoomAt(cx, cy, ns) { // 以屏幕上 (cx, cy) 这一点为中心缩放
+  const b = zoomBox();
+  const px = cx - b.left, py = cy - b.top;
+  ns = Math.min(5, Math.max(1, ns));
+  const k = ns / zoom.s;
+  zoom.x = px - (px - zoom.x) * k;
+  zoom.y = py - (py - zoom.y) * k;
+  zoom.s = ns;
+  applyZoom();
+}
+function resetZoom() { zoom.s = 1; zoom.x = zoom.y = 0; applyZoom(); }
+$('zoomBadge').onclick = resetZoom;
+window.addEventListener('resize', resetZoom);
+let pinch = null, pan = null, lastTap = { t: 0, x: 0, y: 0 };
+const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+video.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 2) {
+    const [a, b] = e.touches;
+    pinch = { d: dist(a, b), s: zoom.s, mx: (a.clientX + b.clientX) / 2, my: (a.clientY + b.clientY) / 2 };
+    pan = null;
+  } else if (e.touches.length === 1 && zoom.s > 1) {
+    pan = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }
+}, { passive: true });
+video.addEventListener('touchmove', (e) => {
+  if (pinch && e.touches.length === 2) {
+    e.preventDefault();
+    const [a, b] = e.touches;
+    const mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2;
+    zoom.x += mx - pinch.mx; zoom.y += my - pinch.my; // 双指一起移动 = 平移
+    pinch.mx = mx; pinch.my = my;
+    zoomAt(mx, my, pinch.s * dist(a, b) / pinch.d);
+  } else if (pan && e.touches.length === 1) {
+    e.preventDefault();
+    const t = e.touches[0];
+    zoom.x += t.clientX - pan.x; zoom.y += t.clientY - pan.y;
+    pan = { x: t.clientX, y: t.clientY };
+    applyZoom();
+  }
+}, { passive: false });
+video.addEventListener('touchend', (e) => {
+  if (e.touches.length < 2) pinch = null;
+  if (e.touches.length === 0) pan = null;
+  if (e.changedTouches.length !== 1 || e.touches.length) return;
+  const t = e.changedTouches[0], now = Date.now();
+  if (now - lastTap.t < 300 && Math.hypot(t.clientX - lastTap.x, t.clientY - lastTap.y) < 40) {
+    lastDoubleTap = now;
+    lastTap.t = 0;
+    if (zoom.s > 1) resetZoom(); else zoomAt(t.clientX, t.clientY, 2.5);
+    return;
+  }
+  lastTap = { t: now, x: t.clientX, y: t.clientY };
+}, { passive: true });
+video.addEventListener('dblclick', (e) => { // 电脑浏览器双击
+  lastDoubleTap = Date.now();
+  if (zoom.s > 1) resetZoom(); else zoomAt(e.clientX, e.clientY, 2.5);
+});
+video.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  zoomAt(e.clientX, e.clientY, zoom.s * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
+}, { passive: false });
+let dragM = null;
+video.addEventListener('mousedown', (e) => { if (zoom.s > 1) dragM = { x: e.clientX, y: e.clientY }; });
+window.addEventListener('mousemove', (e) => {
+  if (!dragM || !(e.buttons & 1)) { dragM = null; return; }
+  zoom.x += e.clientX - dragM.x; zoom.y += e.clientY - dragM.y;
+  dragM = { x: e.clientX, y: e.clientY };
+  applyZoom();
+});
+
+// ---------- 被主播移出：客气一点、好玩一点，休息一会儿还能再进来 ----------
+const KICK_LINES = [
+  ['先去喝杯茶吧 🍵', '主播请你稍微歇一歇，茶凉之前就能回来。'],
+  ['眼睛该放个小假了 👀', '看屏幕久了，眺望一下远方，待会儿再来～'],
+  ['暂时离场，不是告别 👋', '去伸个懒腰、溜达一圈，回来我们接着看。'],
+  ['已帮你按下暂停键 ⏸️', '喝口水、透透气，休息好了随时回来。'],
+  ['你被温柔地请出了直播间 🌿', '主播这会儿想清静一下，等会儿再来串门吧。'],
+  ['中场休息时间到 ⚽', '补充一下能量，下半场见！'],
+  ['座位暂时让给了空气 🪑', '空气说它只坐一会儿，你待会儿再来。'],
+];
+const KICK_REST_SEC = 60;
+function showKicked(restSec) {
+  const [title, desc] = KICK_LINES[Math.floor(Math.random() * KICK_LINES.length)];
+  $('joinScreen').innerHTML = '<div class="join-card kick-card"><h2></h2><p></p>' +
+    '<div class="kick-count" id="kickCount">' + (restSec || KICK_REST_SEC) + '</div><p>秒后可以再进来</p>' +
+    '<button id="rejoinBtn" disabled>休息中…</button></div>';
+  const card = $('joinScreen').querySelector('.kick-card');
+  card.querySelector('h2').textContent = title;
+  card.querySelector('p').textContent = desc;
+  setTop('off', '先休息一下');
+  setTitle('V:kicked');
+  let left = restSec || KICK_REST_SEC;
+  const t = setInterval(() => {
+    left--;
+    const c = $('kickCount');
+    if (!c) return clearInterval(t);
+    if (left > 0) { c.textContent = left; return; }
+    clearInterval(t);
+    c.textContent = '☕';
+    c.nextElementSibling.textContent = '休息好了吗？';
+    const b = $('rejoinBtn');
+    b.disabled = false;
+    b.textContent = '我回来啦，再进去看看';
+    b.onclick = () => location.reload();
+  }, 1000);
+}
+
 function showToast(t) {
   const el = $('toast');
   el.textContent = t;
@@ -836,7 +1066,10 @@ $('fullBtn').onclick = () => {
   } catch (_) { tryIOSFull(); }
 };
 video.addEventListener('click', () => {
-  if (document.body.classList.contains('pseudo-full')) togglePseudoFull();
+  if (!document.body.classList.contains('pseudo-full')) return;
+  setTimeout(() => {
+    if (zoom.s === 1 && Date.now() - lastDoubleTap > 450 && document.body.classList.contains('pseudo-full')) togglePseudoFull();
+  }, 330);
 });
 // iOS 系统播放器退出后：自动恢复播放与界面（否则会停在暂停态像「回不去」）
 video.addEventListener('webkitendfullscreen', () => {
@@ -1129,6 +1362,14 @@ setInterval(async () => {
     if (video.videoWidth > 0 && grow >= 2) {
       setTitle('V:playing');
       $('tapHint').style.display = 'none';
+      // 第一次在手机上看：提示一下可以放大（每台设备只提示一次）
+      try {
+        if (!zoomTipShown && navigator.maxTouchPoints > 0 && !localStorage.getItem('ssl_zoomtip')) {
+          zoomTipShown = true;
+          localStorage.setItem('ssl_zoomtip', '1');
+          setTimeout(() => showToast('字太小？双指张开或双击画面可以放大 🔍'), 2500);
+        }
+      } catch (_) {}
     }
     // 黑屏兜底：线路通了但视频被拦着没播（蜂窝省流模式常见）→ 给出点按提示
     if (pc.connectionState === 'connected' && bytes > 0 && (video.paused || video.readyState < 2)) {

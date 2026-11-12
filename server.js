@@ -18,12 +18,12 @@ const crypto = require('crypto');
 const { WebSocketServer, WebSocket } = require('ws');
 
 const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
-const PORT = cfg.port || 8018;
+const PORT = +process.env.SSL_PORT || cfg.port || 8018; // SSL_PORT：本机测试避开 8018 被占
 const HOST_SECRET = cfg.hostSecret || '';
 const ICE_SERVERS = cfg.iceServers || [];
 // 管理后台登录（要改账号在这里改）
 const ADMIN_USER = 'jacksun';
-const ADMIN_PASS = 'jacksun1234';
+const ADMIN_PASS = '1234';
 
 // ---------------- 管理后台登录 ----------------
 // 用户名+密码登录，连续错 5 次锁 10 分钟（防爆破）；会话令牌 24h，断线重连凭 token 秒恢复
@@ -121,6 +121,7 @@ const pendingUploads = new Map(); // fileId -> { key, name, size, ts }（上传�
 const HOST_GRACE_MS = 90000; // 主播信令断开后房间保留 90 秒等重连（媒体流不受影响）；跨运营商/手机网络抖动 30 秒太短，观众会集体被踢
 const MAX_VIEWERS = 8;       // mesh 架构上限：主播为每人单独推流，瓶颈在主播上行带宽
 const CHAT_MAX_LEN = 500;
+const KICK_REST_MS = 60 * 1000; // 被移出后的休息时间，到点可以再进
 const CHAT_INTERVAL_MS = 800; // 观众发言限频
 
 // ---------------- 房间 ----------------
@@ -169,15 +170,19 @@ const server = http.createServer((req, res) => {
     // 新文件先 HEAD 探测到可读再跳（最多 12 秒），老文件直接跳。
     if (Date.now() - (rec.ts || 0) > 10000) { res.writeHead(302, { Location: target }); return res.end(); }
     let tries = 0;
-    const jump = () => { res.writeHead(302, { Location: target }); res.end(); };
+    const t0 = Date.now();
+    const giveUp = () => tries >= 6 || Date.now() - t0 > 12000;
+    const jump = () => { if (!res.headersSent) { res.writeHead(302, { Location: target }); res.end(); } };
     const probe = () => {
       tries++;
       const preq = http.request(target, { method: 'HEAD' }, (pres) => {
         pres.resume();
-        if (pres.statusCode === 200 || tries >= 6) return jump();
+        if (pres.statusCode === 200 || giveUp()) return jump();
         setTimeout(probe, 2000);
       });
-      preq.on('error', () => { if (tries >= 6) return jump(); setTimeout(probe, 2000); });
+      // 单次探测必须有超时：连接挂住时（CDN 抖动/代理 fake-ip）不设超时会让观众的下载永远转圈
+      preq.setTimeout(3000, () => preq.destroy(new Error('probe-timeout')));
+      preq.on('error', () => { if (giveUp()) return jump(); setTimeout(probe, 2000); });
       preq.end();
     };
     probe();
@@ -248,12 +253,15 @@ wss.on('connection', (ws) => {
         const r = rooms.get(m.room);
         if (!r || !r.host) return send(ws, { t: 'err', msg: 'no-room' });
         if (r.viewers.size >= MAX_VIEWERS) return send(ws, { t: 'err', msg: 'room-full' });
+        // 刚被移出的设备休息期内不让进（防止刷新页面立刻回来）
+        const restUntil = r.kicked && typeof m.did === 'string' ? r.kicked.get(m.did.slice(0, 32)) : 0;
+        if (restUntil && restUntil > Date.now()) return send(ws, { t: 'err', msg: 'resting', left: Math.ceil((restUntil - Date.now()) / 1000) });
         const vid = rid().slice(0, 8);
         // 观众元数据：自取称呼 + 设备描述 + 设备 ID（同一手机点任何链接都认得出）
         ws.meta = {
           did: typeof m.did === 'string' ? m.did.slice(0, 32) : '',
           name: typeof m.name === 'string' ? m.name.trim().slice(0, 12) : '',
-          desc: typeof m.desc === 'string' ? m.desc.slice(0, 20) : '',
+          desc: typeof m.desc === 'string' ? m.desc.slice(0, 24) : '',
         };
         r.viewers.set(vid, ws);
         ws.role = 'viewer';
@@ -282,7 +290,11 @@ wss.on('connection', (ws) => {
         if (!r) return;
         const v = r.viewers.get(m.vid);
         if (v) {
-          send(v, { t: 'bye', reason: 'kicked' });
+          if (v.meta && v.meta.did) {
+            if (!r.kicked) r.kicked = new Map();
+            r.kicked.set(v.meta.did, Date.now() + KICK_REST_MS);
+          }
+          send(v, { t: 'bye', reason: 'kicked', rest: KICK_REST_MS / 1000 });
           try { v.close(); } catch (_) {} // close 事件里统一清理并通知主播
         }
         break;
@@ -415,6 +427,9 @@ wss.on('connection', (ws) => {
         if (!text) return;
         if (ws.role === 'viewer') {
           send(r.host, { t: 'chat', from: ws.vid, text, ts: now });
+          // 观众群聊：其他观众也能看到（带称呼，没起名就用设备名）
+          const name = (ws.meta && (ws.meta.name || ws.meta.desc)) || '观众';
+          r.viewers.forEach((v, id) => { if (id !== ws.vid) send(v, { t: 'chat', from: ws.vid, name, text, ts: now }); });
         } else if (ws.role === 'host') {
           if (m.to === 'all') {
             r.viewers.forEach((v) => send(v, { t: 'chat', from: 'host', text, ts: now }));

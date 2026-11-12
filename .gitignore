@@ -22,3 +22,8 @@ __pycache__/
 *.jsonl
 *.db
 config.json
+
+# 运行时数据，不入库
+guests.json
+file-registry.json
+*.bak-recguard-*

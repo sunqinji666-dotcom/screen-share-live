@@ -120,6 +120,7 @@ try {
 
 let ws = null;
 let reconnectTimer = null;
+let loggedIn = false; // 只有已登录才轮询房间；未登录时发请求会被服务器回「admin-expired」，曾导致登录页每 5 秒弹一次「登录已过期」
 let pendingLogin = null; // 连接未就绪时点登录：暂存凭据，连上自动补发（公网 wss 握手 1~2 秒，用户大概率先点按钮）
 
 function connect() {
@@ -147,6 +148,7 @@ function connect() {
     try { m = JSON.parse(ev.data); } catch (_) { return; }
     switch (m.t) {
       case 'admin-ok':
+        loggedIn = true;
         if (m.sessionToken) localStorage.setItem('ssl_admin_session', m.sessionToken);
         $('stateBadge').textContent = '已登录';
         $('stateBadge').className = 'badge on';
@@ -162,17 +164,18 @@ function connect() {
         break;
       case 'err':
         if (m.msg === 'bad-admin-credential') {
-          $('stateBadge').textContent = '用户名、密码或验证码不对';
+          enterLoginFlow(); // 先回登录态，再写错误提示，否则提示会被「请登录」覆盖
+          $('stateBadge').textContent = '用户名或密码不对';
           $('stateBadge').className = 'badge';
           if ($('stateRow')) { $('stateRow').style.display = 'flex'; }
-          enterLoginFlow();
         } else if (m.msg === 'admin-locked') {
           $('stateBadge').textContent = '已锁定，约 ' + Math.ceil((m.retryAfter || 600) / 60) + ' 分钟后再试';
           $('stateBadge').className = 'badge';
           if ($('stateRow')) { $('stateRow').style.display = 'flex'; }
         } else if (m.msg === 'admin-expired') {
           localStorage.removeItem('ssl_admin_session'); // 令牌已失效，清掉避免每次自动重连都撞一次
-          showToast('登录已过期，请重新登录');
+          if (loggedIn) showToast('登录已过期，请重新登录'); // 本来就没登录（刚打开页面）不提示，直接停在登录页
+          loggedIn = false;
           enterLoginFlow();
         }
         break;
@@ -188,7 +191,8 @@ function connect() {
     }
   };
   ws.onclose = () => {
-    // 会话令牌还在本地，重连成功即自动续登，不用重新输验证码
+    // 会话令牌还在本地，重连成功即自动续登，不用重新输密码
+    loggedIn = false;
     $('stateBadge').textContent = '连接断开，重连中…';
     $('stateBadge').className = 'badge';
     if ($('stateRow')) { $('stateRow').style.display = 'flex'; }
@@ -310,7 +314,7 @@ function renderRooms(list) {
 }
 
 function refreshRooms() {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'admin-rooms' }));
+  if (loggedIn && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'admin-rooms' }));
 }
 setInterval(refreshRooms, 5000);
 // WS 心跳：每 25 秒发一条空保活，防 nginx 空闲超时掐连接（连接被掐会触发重连→令牌撞墙循环）

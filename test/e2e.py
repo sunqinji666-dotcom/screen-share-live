@@ -23,7 +23,7 @@ CHROME_CANDIDATES = [
     "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
 ]
 CHROME = next((p for p in CHROME_CANDIDATES if os.path.exists(p)), None)
-PORT = 8018
+PORT = int(os.environ.get("SSL_PORT", "8018"))  # 本机 8018 被占时 SSL_PORT=8019
 REMOTE_BASE = sys.argv[1] if len(sys.argv) > 1 else None  # 如 https://zhibo.jack-sun.com
 
 FLAGS = [
@@ -93,6 +93,7 @@ def main():
             server = subprocess.Popen(
                 ["node", os.path.join(BASE, "server.js")],
                 stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+                env={**os.environ, "SSL_PORT": str(PORT)},
             )
             procs.append(server)
             if not wait_for(lambda: _http_ok(PORT), 10, "信令服务就绪"):

@@ -11,14 +11,15 @@
 <link rel="stylesheet" href="theme.css">
 <script src="theme-toggle.js"></script>
 <script src="assets/lucide.min.js"></script>
+<script src="assets/qrcode.js"></script>
 </head>
 <body>
 <header class="topbar">
-  <a class="brand" href="./index.html" aria-label="同屏首页"><span class="brand-mark"><i data-lucide="screen-share"></i></span><span class="brand-name">同屏</span></a>
+  <a class="brand" data-keep-live href="./index.html" aria-label="同屏首页"><span class="brand-mark"><i data-lucide="screen-share"></i></span><span class="brand-name">同屏</span></a>
   <span class="brand-description">互动开播 · 8 人内双向通话</span>
   <div class="top-right">
     <button class="icon-btn" data-theme-toggle title="切换日夜模式" aria-label="切换日夜模式"></button>
-    <a class="icon-btn" href="./admin.html" title="管理后台" aria-label="管理后台"><i data-lucide="settings-2"></i></a>
+    <a class="icon-btn" data-keep-live href="./admin.html" title="管理后台" aria-label="管理后台"><i data-lucide="settings-2"></i></a>
   </div>
 </header>
 <main class="page-body">
@@ -36,7 +37,9 @@
       <span class="strip-stat">编码 <b id="stEnc">—</b></span>
       <span class="strip-stat">延迟 <b id="stRtt">—</b></span>
       <span class="strip-stat">线路 <b id="stVia">—</b></span>
+      <span class="strip-stat" id="recStat" style="display:none">录制 <b id="recStatVal">—</b></span>
     </div>
+    <button id="qrBtn" class="button" disabled style="flex-shrink:0;padding:9px 14px;font-size:13px" title="显示观众二维码（身边的人用手机/微信扫一扫）"><i data-lucide="qr-code"></i>二维码</button>
     <button id="copyBtn" class="button primary" disabled style="flex-shrink:0;padding:9px 18px;font-size:13px"><i data-lucide="copy"></i><span id="copyBtnLabel">复制观众链接</span></button>
     <button id="stopBtn" class="button danger" disabled style="flex-shrink:0"><i data-lucide="phone-off"></i>结束共享</button>
   </div>
@@ -46,6 +49,7 @@
     </div>
   </section>
   <div id="inviteLink" class="link" style="display:none" aria-hidden="true"></div>
+  <div id="qrPop" role="dialog" aria-label="观众二维码"><div class="qr-card"><div id="qrBox"></div><p>微信 / 手机相机扫一扫，直接进来看</p><button id="qrClose" class="button">关闭</button></div></div>
   <section class="workspace">
     <div class="stage-column">
       <section class="share-stage">
@@ -86,7 +90,8 @@
       </section>
       <section id="panel-people" class="panel-content" role="tabpanel" aria-label="成员" hidden>
         <div id="viewersCard" style="display:flex;flex-direction:column;flex:1;min-height:0">
-          <div class="card-title"><i data-lucide="users"></i>观众与通话</div>
+          <div class="card-title"><i data-lucide="users"></i>观众与通话
+            <span class="card-ops"><button id="muteAllBtn" class="opbtn" title="把所有观众的麦克风关掉（TA 们自己打不开）">全员静音</button><button id="unmuteAllBtn" class="opbtn" title="解除所有观众的静音">全员解除</button><button id="chimeBtn" class="opbtn" title="有人进出/发消息时响一声"><i data-lucide="bell"></i></button></span></div>
           <div id="viewerList" class="viewers"><p id="viewerEmpty">暂无观众</p></div>
           <div class="speakerRow" id="micRow">
             <span style="flex-shrink:0">我的麦克风</span>
@@ -101,6 +106,11 @@
             <span style="flex-shrink:0">系统声音</span>
             <input type="range" id="sysVol" min="0" max="200" value="100" disabled aria-label="系统声音音量">
             <span id="sysVolState" class="range-val">未共享</span>
+          </div>
+          <div class="speakerRow" id="partyVolRow">
+            <span style="flex-shrink:0" title="观众之间互相听到的音量（不影响你听观众）">观众互通</span>
+            <input type="range" id="partyVol" min="0" max="200" value="100" aria-label="观众之间互相听到的音量">
+            <span id="partyVolVal" class="range-val">100%</span>
           </div>
           <div class="speakerRow" id="speakerRow">
             <span style="flex-shrink:0">观众声音</span>
@@ -120,14 +130,23 @@
     <div class="control-dock">
       <div class="control-item"><button id="micBtn" aria-pressed="false" title="麦克风 · Alt+M" aria-label="麦克风开关"><i data-lucide="mic"></i></button><span id="micBtnLabel" class="control-label">麦克风</span></div>
       <div class="control-item"><button id="camBtn" disabled title="摄像头 · Alt+V" aria-label="摄像头开关"><i data-lucide="video"></i></button><span id="camBtnLabel" class="control-label">摄像头</span></div>
+      <div class="control-item"><button id="switchBtn" disabled title="换一个屏幕/窗口（观众不用重进）" aria-label="换屏幕"><i data-lucide="repeat-2"></i></button><span class="control-label">换屏幕</span></div>
       <div class="control-item"><button id="shotBtn" title="截图到剪贴板 · Alt+S" aria-label="截图"><i data-lucide="camera"></i></button><span class="control-label">截图</span></div>
       <div class="control-item"><button id="recBtn" title="录制本场直播 · Alt+R" aria-label="录制"><i data-lucide="disc"></i></button><span id="recLabel" class="control-label">录制</span></div>
+      <div class="control-item"><button id="toMp4Btn" title="把录好的 .webm 转成 .mp4（QuickTime / 剪映 / 达芬奇都能直接打开）" aria-label="转MP4"><i data-lucide="file-video"></i></button><span id="toMp4Label" class="control-label">转MP4</span><input id="toMp4File" type="file" accept=".webm,video/webm,.mkv" multiple hidden><label style="display:flex;align-items:center;gap:3px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap" title="勾上后：每次录制结束，除了 webm 再自动转一份 mp4"><input type="checkbox" id="autoMp4" style="margin:0">自动</label></div>
       <span class="dock-divider" aria-hidden="true"></span>
+      <div class="control-item"><button id="partyBtn" class="active" title="观众互通：已开启（点击关闭）" aria-label="观众互通"><i data-lucide="users"></i></button><span id="partyLabel" class="control-label">观众互通</span></div>
       <div class="control-item"><button id="volBtn" title="音频推子与观众控制" aria-label="音频台"><i data-lucide="sliders-horizontal"></i></button><span class="control-label">音频台</span></div>
     </div>
   </section>
 </main>
 <div id="toast" role="status" aria-live="polite"></div>
+<div id="mp4Panel" class="mp4-panel" role="status" aria-live="polite" hidden>
+  <div class="mp4-panel-head"><span id="mp4Title">正在转换</span><button id="mp4Close" type="button" aria-label="关闭" title="关闭">×</button></div>
+  <div id="mp4Name" class="mp4-panel-name"></div>
+  <div class="mp4-bar"><i id="mp4Fill"></i></div>
+  <div class="mp4-panel-foot"><span id="mp4Pct">0%</span><span id="mp4Msg"></span></div>
+</div>
 <script>
 'use strict';
 const qs = new URLSearchParams(location.search);
@@ -212,9 +231,12 @@ let viaChanged = false;
 // 观众显示名：自取称呼 > 设备描述 > 随机代号
 function vidLabel(vid) {
   const m = metaMap.get(vid);
-  if (m && m.name) return m.name;
-  if (m && m.desc) return m.desc;
-  return '观众 ' + vid.slice(0, 4);
+  const base = (m && (m.name || m.desc)) || '';
+  if (!base) return '观众 ' + vid.slice(0, 4);
+  // 重名（如两台同款 iPhone 都没填称呼）：后进来的加编号区分
+  const same = [...metaMap.keys()].filter((id) => { const o = metaMap.get(id); return o && (o.name || o.desc) === base; });
+  const i = same.indexOf(vid);
+  return i > 0 ? base + ' ' + (i + 1) + '号' : base;
 }
 
 // 中继观众最高只能到「中继顺滑」档（保护服务器出向带宽）；直连观众可冲拉满档
@@ -408,6 +430,7 @@ async function start() {
     attachMyMeter(micSendTrack || micTrack); // 电平条显示推子后的实际发送电平
     $('micRow').style.display = 'flex';
     $('micVolRow').style.display = 'flex';
+    $('partyVolRow').style.display = 'flex';
     $('sysVolRow').style.display = 'flex';
     $('sysVol').disabled = !sysAudioTrack;
     $('sysVolState').textContent = sysAudioTrack ? $('sysVol').value + '%' : '未共享';
@@ -417,6 +440,7 @@ async function start() {
     $('startBtn').disabled = true;
     $('stopBtn').disabled = false;
     $('camBtn').disabled = false;
+    $('switchBtn').disabled = false;
   } catch (err) {
     console.error(err);
     setBadge('出错：' + (err.name || err.message));
@@ -435,6 +459,10 @@ function stop() {
   mixCtx = micGainNode = sysGainNode = recDest = null;
   micSendTrack = sysSendTrack = null;
   $('micVolRow').style.display = 'none';
+  $('partyVolRow').style.display = 'none';
+  party.forEach((_, id) => dropParty(id));
+  if (partyCtx) { try { partyCtx.close(); } catch (_) {} partyCtx = null; }
+  partyLast.clear();
   $('sysVolRow').style.display = 'none';
   $('sysVol').disabled = true;
   $('sysVolState').textContent = '未共享';
@@ -442,6 +470,9 @@ function stop() {
   camSeen = false;
   viewerCamOn.clear();
   $('camBtn').disabled = true;
+  $('switchBtn').disabled = true;
+  $('qrBtn').disabled = true;
+  $('qrPop').classList.remove('show');
   $('camsRow').classList.remove('show');
   $('camsRow').innerHTML = '';
   $('preview').srcObject = null;
@@ -494,11 +525,13 @@ function connectSignaling(secret) {
       case 'view-joined':
         metaMap.set(m.vid, m.meta || {});
         addPeer(m.vid, m.meta);
+        chime('join');
         break;
-      case 'view-left':   dropPeer(m.vid); break;
+      case 'view-left':   if (peers.has(m.vid)) chime('leave'); dropPeer(m.vid); break;
       case 'signal':      onSignal(m.from, m.data); break;
       case 'chat':
         addChat(m.from === 'host' ? '主播' : vidLabel(m.from), m.text);
+        if (m.from !== 'host' && document.hidden) chime('msg'); // 切到别的窗口时才响，在看页面就不吵
         break;
       case 'qos':
         qosMap.set(m.from, { fps: m.fps, kbps: m.kbps, loss: m.loss, rtt: m.rtt, ts: Date.now() });
@@ -525,6 +558,7 @@ function showInvite() {
   $('viewersCard').classList.add('show');
   $('chatCard').classList.add('show');
   $('copyBtn').disabled = false;
+  $('qrBtn').disabled = false;
 }
 
 // ---------- 文字聊天 ----------
@@ -657,6 +691,60 @@ function updateFileMsg(id, statusText, isErr) {
   trackFileStatus(id, statusText, isErr);
 }
 
+// ---------- 观众互通：主播页做 mix-minus 转发 ----------
+// 每个观众的麦克风汇入各自的 gate；给每个观众单独混一路「除 TA 自己以外的所有观众」回传，
+// 观众之间不建连接（不增加中继流量），也不会听到自己的回声。
+let partyCtx = null;
+const party = new Map(); // vid -> { gate, dst, src }
+let partyOn = true; // 主播总开关：观众之间能否互相听到
+let partyVol = 1; // 主播推子：观众之间互相听到的音量（0-200%）
+const partyGain = () => (partyOn ? partyVol : 0);
+function ensureParty(vid) {
+  if (party.has(vid)) return party.get(vid);
+  if (!partyCtx) partyCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (partyCtx.state === 'suspended') partyCtx.resume().catch(() => {});
+  const gate = partyCtx.createGain();
+  gate.gain.value = partyGain();
+  const dst = partyCtx.createMediaStreamDestination();
+  const entry = { gate, dst, src: null };
+  party.set(vid, entry);
+  party.forEach((o, id) => {
+    if (id === vid) return;
+    gate.connect(o.dst); // 新人的声音 → 老观众
+    o.gate.connect(dst); // 老观众的声音 → 新人
+  });
+  return entry;
+}
+function partyAttachSource(vid, track) {
+  const e = party.get(vid);
+  if (!e) return;
+  try { if (e.src) e.src.disconnect(); } catch (_) {}
+  e.src = partyCtx.createMediaStreamSource(new MediaStream([track]));
+  e.src.connect(e.gate);
+}
+function dropParty(vid) {
+  const e = party.get(vid);
+  if (!e) return;
+  try { if (e.src) e.src.disconnect(); } catch (_) {}
+  try { e.gate.disconnect(); } catch (_) {}
+  party.forEach((o) => { try { o.gate.disconnect(e.dst); } catch (_) {} });
+  party.delete(vid);
+}
+function applyPartyGain() {
+  party.forEach((e) => { e.gate.gain.setTargetAtTime(partyGain(), partyCtx.currentTime, 0.05); });
+}
+function setPartyOn(on) {
+  partyOn = on;
+  applyPartyGain();
+  partyLast.clear(); // 开关变化立即同步给观众
+  $('partyVol').disabled = !on;
+  $('partyVolVal').textContent = on ? Math.round(partyVol * 100) + '%' : '已关闭';
+  const b = document.getElementById('partyBtn');
+  if (b) { b.classList.toggle('active', on); b.title = on ? '观众互通：已开启（点击关闭）' : '观众互通：已关闭（点击开启）'; }
+  const l = document.getElementById('partyLabel');
+  if (l) l.textContent = on ? '观众互通' : '互通已关';
+}
+
 // ---------- PeerConnection ----------
 async function addPeer(vid) {
   const pc = new RTCPeerConnection({ iceServers: ICE, bundlePolicy: 'max-bundle' });
@@ -665,6 +753,10 @@ async function addPeer(vid) {
   pc.addTrack(screenTrack, screenStream);
   pc.addTrack(micSendTrack || micTrack, micStream); // 混音台增益后的麦克风轨
   if (sysAudioTrack) pc.addTrack(sysSendTrack || sysAudioTrack, screenStream); // 电脑声音直达对方（增益后）
+  // 观众互通：给 TA 的「其他观众混音」专线（sendonly，排在 mic/sys 之后，观众麦克风仍挂第一条 audio m-line）
+  const pt = ensureParty(vid);
+  const ptTrack = pt.dst.stream.getAudioTracks()[0];
+  pc.addTransceiver(ptTrack, { direction: 'sendonly', streams: [pt.dst.stream] });
   // 观众摄像头回传占位：recvonly video m-line，观众开摄像头时 answer 里自动挂上
   pc.addTransceiver('video', { direction: 'recvonly' });
   if (camOn && camTrack) {
@@ -710,6 +802,7 @@ async function addPeer(vid) {
       a.autoplay = true;
       document.body.appendChild(a);
     }
+    partyAttachSource(vid, e.track);
     a.srcObject = new MediaStream([e.track]);
     a.volume = speakerVolume;
     a.muted = speakerMuted;
@@ -746,6 +839,8 @@ function dropPeer(vid) {
   peers.delete(vid);
   pendingCandidates.delete(vid);
   audioStat.delete(vid);
+  dropParty(vid);
+  partyLast.delete(vid);
   perViewerMuted.delete(vid);
   qosMap.delete(vid);
   metaMap.delete(vid);
@@ -969,6 +1064,7 @@ function viewerRowEl(vid) {
     ops.className = 'vops';
     const muteB = document.createElement('button');
     muteB.className = 'opbtn';
+    muteB.id = 'mb-' + vid;
     muteB.innerHTML = '<i data-lucide="mic-off"></i>';
     muteB.title = '不听 TA 的声音';
     muteB.onclick = () => {
@@ -992,12 +1088,13 @@ function viewerRowEl(vid) {
     };
     ops.appendChild(muteB);
     ops.appendChild(kickB);
-    if (window.lucide) window.lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
     row.appendChild(label);
     row.appendChild(bar);
     row.appendChild(state);
     row.appendChild(ops);
     $('viewerList').appendChild(row);
+    // 图标要在行插进页面之后再渲染（createIcons 只扫描文档里的元素，之前第二位起的观众静音按钮是空白的）
+    if (window.lucide) window.lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
     // 聊天下拉里同步加 TA
     const opt = document.createElement('option');
     opt.value = vid;
@@ -1037,6 +1134,126 @@ $('micBtn').onclick = () => {
   $('myLevel').style.opacity = micMuted ? '.3' : '1';
 };
 
+$('partyBtn').onclick = () => setPartyOn(!partyOn);
+$('partyVol').oninput = (e) => {
+  partyVol = e.target.value / 100;
+  $('partyVolVal').textContent = e.target.value + '%';
+  applyPartyGain();
+};
+// 告诉每位观众：互通是否开启、在线几人、其他谁正在说话（只在内容变化时发，不刷信令）
+const partyLast = new Map(); // vid -> 上次发出的 JSON
+function syncPartyState(speaking) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  peers.forEach((_, vid) => {
+    const data = {
+      control: 'party',
+      on: partyOn,
+      count: peers.size,
+      speaking: partyOn ? speaking.filter((id) => id !== vid).map(vidLabel) : [],
+      people: [...peers.keys()].filter((id) => id !== vid).map((id) => [id, vidLabel(id)]),
+    };
+    const j = JSON.stringify(data);
+    if (partyLast.get(vid) === j) return;
+    partyLast.set(vid, j);
+    ws.send(JSON.stringify({ t: 'signal', to: vid, data }));
+  });
+}
+// ---------- 全员静音 / 解除（多人互通时控场用） ----------
+function muteAll(on) {
+  peers.forEach((_, vid) => {
+    if (on) perViewerMuted.add(vid); else perViewerMuted.delete(vid);
+    const b = document.getElementById('mb-' + vid);
+    if (b) b.classList.toggle('active', on);
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'signal', to: vid, data: { control: 'mic-muted', on } }));
+  });
+  applySpeaker();
+  showToast(on ? '已全员静音（观众自己打不开）' : '已解除全员静音');
+}
+$('muteAllBtn').onclick = () => muteAll(true);
+$('unmuteAllBtn').onclick = () => muteAll(false);
+
+// ---------- 提示音：有人进来/离开/切走时来消息，响一声（只在主播本机响，不发给观众） ----------
+let chimeOn = true, chimeCtx = null;
+try { chimeOn = localStorage.getItem('ssl_chime') !== '0'; } catch (_) {}
+function renderChimeBtn() {
+  $('chimeBtn').innerHTML = '<i data-lucide="' + (chimeOn ? 'bell' : 'bell-off') + '"></i>';
+  $('chimeBtn').title = chimeOn ? '提示音：开（点击关闭）' : '提示音：关（点击开启）';
+  if (window.lucide) window.lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
+}
+function chime(kind) {
+  if (!chimeOn) return;
+  try {
+    if (!chimeCtx) chimeCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (chimeCtx.state === 'suspended') chimeCtx.resume().catch(() => {});
+    const notes = kind === 'join' ? [660, 880] : kind === 'leave' ? [660, 495] : [990];
+    notes.forEach((f, i) => {
+      const o = chimeCtx.createOscillator(), g = chimeCtx.createGain();
+      const t = chimeCtx.currentTime + i * 0.13;
+      o.type = 'sine';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.12, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+      o.connect(g).connect(chimeCtx.destination);
+      o.start(t);
+      o.stop(t + 0.3);
+    });
+  } catch (_) {}
+}
+$('chimeBtn').onclick = () => {
+  chimeOn = !chimeOn;
+  try { localStorage.setItem('ssl_chime', chimeOn ? '1' : '0'); } catch (_) {}
+  renderChimeBtn();
+  if (chimeOn) chime('msg');
+};
+renderChimeBtn();
+
+// ---------- 二维码：身边的人直接扫码进来 ----------
+$('qrBtn').onclick = () => {
+  const link = $('inviteLink').textContent;
+  if (!link || !window.qrcode) return;
+  const qr = qrcode(0, 'M');
+  qr.addData(link);
+  qr.make();
+  $('qrBox').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+  $('qrPop').classList.add('show');
+};
+$('qrClose').onclick = () => $('qrPop').classList.remove('show');
+$('qrPop').onclick = (e) => { if (e.target === $('qrPop')) $('qrPop').classList.remove('show'); };
+
+// ---------- 换屏幕：重新选屏幕/窗口，所有观众线路不断，替换视频轨即可 ----------
+async function switchScreen() {
+  if (!screenTrack || !screenStream) return;
+  let ns;
+  try {
+    ns = FAKE ? fakeVideoStream('SWITCHED ') : await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: { ideal: 60, max: 60 } },
+      audio: false, // 系统声音沿用开播时那条，不重新选
+    });
+  } catch (_) { return; } // 用户在选择器里点了取消
+  const nt = ns.getVideoTracks()[0];
+  if (!nt) return;
+  nt.contentHint = QUALITY[qualityMode].hint;
+  const old = screenTrack;
+  const wasRec = !!recorder;
+  if (wasRec) stopRec(); // MediaRecorder 换不了轨：先把前半段存下来，换完接着录
+  for (const pc of peers.values()) {
+    const sender = pc.getSenders().find((x) => x.track === old);
+    if (sender) { try { await sender.replaceTrack(nt); } catch (err) { console.warn('换屏幕 replaceTrack 失败', err); } }
+  }
+  old.onended = null;
+  screenStream.removeTrack(old);
+  old.stop();
+  screenStream.addTrack(nt);
+  screenTrack = nt;
+  nt.onended = () => stop(); // 用户在浏览器栏点了「停止共享」
+  $('preview').srcObject = screenStream;
+  if (nt.label) $('sourceTitle').textContent = nt.label.slice(0, 40);
+  if (wasRec) setTimeout(() => { if (!recorder) toggleRec(); }, 300);
+  showToast(wasRec ? '已换屏幕，录制已分段保存并继续' : '已换屏幕，观众无需重进');
+}
+$('switchBtn').onclick = switchScreen;
+
 // ---------- 喇叭输出控制 ----------
 let speakerVolume = 1.0, speakerMuted = false;
 function applySpeaker() {
@@ -1064,6 +1281,7 @@ $('spkBtn').onclick = () => {
 
 // ---------- 统计与观众状态（500ms：电平条流畅跳动的最小间隔） ----------
 let lastSent = 0, lastStatsTs = 0, audioSeen = false, lastEncTime = null;
+const speakingNow = new Set(); // 本轮统计里正在说话的观众
 const audioStat = new Map(); // vid -> { bytes, ts, kbps }
 setInterval(async () => {
   if (!peers.size) {
@@ -1130,10 +1348,10 @@ setInterval(async () => {
       const mutedSelf = micStateMap.get(vid) === true;
       let voice;
       if (mutedByMe) voice = '已被你静音';
-      else if (mutedSelf) voice = '他闭了麦';
+      else if (mutedSelf) voice = 'TA 闭了麦';
       else if (aIn === 0) voice = '声音: 未接入';
       else if (prev.kbps <= 0) voice = '声音: 断流';
-      else if (aLevel > 0.01) voice = '正在说话';
+      else if (aLevel > 0.01) { voice = '正在说话'; speakingNow.add(vid); }
       else voice = '安静';
       const stateZh = { connected: '已接通', checking: '接通中', disconnected: '波动中', failed: '已断开', new: '连接中', closed: '已关闭' }[pc.connectionState] || pc.connectionState;
       vs.textContent = `${stateZh} · ${voice}`;
@@ -1142,6 +1360,8 @@ setInterval(async () => {
         : (aLevel > 0.01 ? '#6ee7a0' : (aIn === 0 ? '#d4a017' : '#8a8a99'));
     }
   }
+  syncPartyState([...speakingNow]);
+  speakingNow.clear();
   setTitle('H:live:v' + peers.size + (audioSeen ? ':A' : '') + (camSeen ? ':C' : ''));
   // 观众线路类型变化（中继/直连）时重新套用该观众的档位上限
   if (viaChanged) {
@@ -1260,7 +1480,7 @@ async function takeShot() {
     } catch (_) {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(b);
-      a.download = '同屏截图-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '') + '.png';
+      a.download = '同屏截图-' + fileStamp() + '.png';
       a.click();
       showToast('截图已保存到下载');
     }
@@ -1270,13 +1490,74 @@ const shotBtnEl = document.getElementById('shotBtn');
 if (shotBtnEl) shotBtnEl.onclick = takeShot;
 
 // 录制：共享画面 + 混音后的人声/系统声，本地完整成片
-let recorder = null, recChunks = [], recSeconds = 0, recTicker = null, recFileExt = 'webm', recMime = 'video/webm';
+// 录制采用 H.264 (+Opus) 的 WebM：CPU 占用低，分片可随时拼接，崩溃后能无损转成 mp4。
+// 每个 2 秒分片写进 IndexedDB；内存里不留整份副本，所以录得再久页面也不会越来越卡。
+let recorder = null, recSeconds = 0, recTicker = null, recFileExt = 'webm', recMime = 'video/webm';
+let recBytes = 0, recDbErr = 0, recFreeBytes = null;
+const recDB = (() => {
+  let p = null;
+  const open = () => p || (p = new Promise((res, rej) => {
+    const r = indexedDB.open('ssl-rec', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('chunks', { autoIncrement: true });
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  }));
+  const tx = async (mode, fn) => {
+    const db = await open();
+    return new Promise((res, rej) => {
+      const t = db.transaction('chunks', mode);
+      const out = fn(t.objectStore('chunks'));
+      t.oncomplete = () => res(out && out.result);
+      t.onerror = t.onabort = () => rej(t.error);
+    });
+  };
+  return {
+    add: (rec) => tx('readwrite', (s) => s.add(rec)),
+    all: () => tx('readonly', (s) => s.getAll()),
+    removeSid: (sid) => tx('readwrite', (s) => {
+      s.openCursor().onsuccess = (e) => {
+        const c = e.target.result;
+        if (c) { if (c.value.sid === sid) c.delete(); c.continue(); }
+      };
+    }),
+  };
+})();
+// 文件名时间戳：本机时间、补零，例如 2026-11-05_21-13-41（toISOString 是 UTC，会差 8 小时，别用）
+function fileStamp(ms) {
+  const d = new Date(ms == null ? Date.now() : ms), z = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + '_' + z(d.getHours()) + '-' + z(d.getMinutes()) + '-' + z(d.getSeconds());
+}
+function saveBlobAs(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+function fmtBytes(n) {
+  if (n == null) return '—';
+  if (n >= 1073741824) return (n / 1073741824).toFixed(2) + ' GB';
+  return (n / 1048576).toFixed(n >= 104857600 ? 0 : 1) + ' MB';
+}
 function pickRecMime() {
-  const list = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=h264,opus', 'video/webm', 'video/mp4'];
+  const list = ['video/webm;codecs=h264,opus', 'video/webm;codecs=avc1,opus', 'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
   for (const m of list) {
     try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (_) {}
   }
   return '';
+}
+async function recRefreshFree() {
+  try { const e = await navigator.storage.estimate(); recFreeBytes = Math.max(0, e.quota - e.usage); } catch (_) {}
+}
+function recRenderStat() {
+  const box = document.getElementById('recStat'), val = document.getElementById('recStatVal');
+  if (!box) return;
+  box.style.display = recorder ? '' : 'none';
+  if (!recorder) return;
+  const bad = recDbErr > 0;
+  val.textContent = fmtBytes(recBytes) + ' · 可用 ' + fmtBytes(recFreeBytes) + (bad ? ' · ⚠ 落盘失败' : '');
+  val.style.color = bad || (recFreeBytes != null && recFreeBytes < 1073741824) ? 'var(--danger)' : '';
 }
 function toggleRec() {
   if (recorder) { stopRec(); return; }
@@ -1285,49 +1566,232 @@ function toggleRec() {
   const tracks = [screenTrack];
   if (recDest) recDest.stream.getAudioTracks().forEach((t) => tracks.push(t));
   else if (micSendTrack) tracks.push(micSendTrack);
-  const stream = new MediaStream(tracks);
+  let rec;
   try {
-    recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    rec = new MediaRecorder(new MediaStream(tracks), Object.assign({ audioBitsPerSecond: 128000 }, mime ? { mimeType: mime } : {}));
   } catch (err) {
     showToast('当前浏览器不支持录制');
-    recorder = null;
     return;
   }
-  recMime = recorder.mimeType || 'video/webm';
-  recFileExt = recMime.includes('mp4') ? 'mp4' : 'webm';
-  recChunks = [];
-  recorder.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
-  recorder.onstop = () => {
-    const blob = new Blob(recChunks, { type: recMime });
-    recChunks = [];
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = '同屏录制-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + recFileExt;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  const mimeNow = rec.mimeType || 'video/webm';
+  const extNow = mimeNow.includes('mp4') ? 'mp4' : 'webm';
+  // 每场录制一个独立会话对象：换屏幕分段时，上一段的收尾不会和下一段互相覆盖
+  const rs = { sid: 'r' + Date.now(), seq: 0, persist: Promise.resolve(), fallback: [], release: null };
+  recorder = rec; recMime = mimeNow; recFileExt = extNow; recBytes = 0; recDbErr = 0; recSeconds = 0;
+  // 持锁 = 这场录制还活着；页面一死锁自动释放，恢复逻辑据此区分「遗留」和「别的标签页正在录」
+  if (navigator.locks) navigator.locks.request('ssl-rec-' + rs.sid, () => new Promise((r) => { rs.release = r; }));
+  try { navigator.storage.persist && navigator.storage.persist(); } catch (_) {}
+  rec.ondataavailable = (e) => {
+    if (!e.data || !e.data.size) return;
+    const seq = rs.seq++;
+    recBytes += e.data.size;
+    rs.persist = rs.persist
+      .then(() => recDB.add({ sid: rs.sid, seq, mime: mimeNow, ext: extNow, blob: e.data }))
+      .catch(() => { recDbErr++; rs.fallback.push({ seq, blob: e.data }); }); // 落盘失败的分片才留在内存里兜底
   };
-  recorder.start(2000);
-  recSeconds = 0;
+  rec.onerror = () => { showToast('录制出错，已尝试保存已录部分'); if (recorder === rec) stopRec(); };
+  rec.onstop = () => finishRec(rs, mimeNow, extNow);
+  rec.start(2000);
   document.getElementById('recBtn').classList.add('rec-active');
+  recRefreshFree().then(recRenderStat);
   recTicker = setInterval(() => {
     recSeconds++;
     const mm = String(Math.floor(recSeconds / 60)).padStart(2, '0');
     const ss = String(recSeconds % 60).padStart(2, '0');
     document.getElementById('recLabel').textContent = mm + ':' + ss;
+    if (recSeconds % 2 === 0) {
+      recRefreshFree().then(() => {
+        recRenderStat();
+        if (recFreeBytes != null && recFreeBytes < 150 * 1048576 && recorder === rec) {
+          showToast('存储空间即将用尽，已自动停止并保存录制');
+          stopRec();
+        } else if (recFreeBytes != null && recFreeBytes < 1073741824 && !rs.warned) {
+          rs.warned = true;
+          showToast('提醒：录制可用空间不足 1 GB');
+        }
+      });
+    } else recRenderStat();
   }, 1000);
-  showToast('开始录制（保存在本机）');
+  recRenderStat();
+  showToast('开始录制（边录边存，刷新也能恢复）');
+}
+async function finishRec(rs, mime, ext) {
+  try {
+    await rs.persist;
+    let rows = [];
+    try { rows = (await recDB.all()).filter((r) => r.sid === rs.sid); } catch (_) {}
+    const have = new Set(rows.map((r) => r.seq));
+    rs.fallback.forEach((f) => { if (!have.has(f.seq)) rows.push(f); });
+    rows.sort((a, b) => a.seq - b.seq);
+    if (!rows.length) { showToast('这次没有录到内容'); return; }
+    const blob = new Blob(rows.map((r) => r.blob), { type: mime });
+    const baseName = '同屏录制-' + fileStamp(Number(rs.sid.slice(1))); // 以开始录制的时间命名
+    saveBlobAs(blob, baseName + '.' + ext); // 先把 webm 存下来当保底
+    // 勾了「录完自动转 MP4」：webm 已安全落地后，再在后台转一份 mp4（失败也不影响 webm）
+    if (ext === 'webm' && autoMp4On()) {
+      setTimeout(() => runToMp4([new File([blob], baseName + '.webm', { type: mime })]), 1200);
+    }
+    // 已交给浏览器下载：打标记，5 分钟后清库；期间若页面被关，下次打开也不会当遗留提示
+    try { localStorage.setItem('ssl-rec-done-' + rs.sid, String(Date.now())); } catch (_) {}
+    setTimeout(() => {
+      recDB.removeSid(rs.sid).catch(() => {});
+      try { localStorage.removeItem('ssl-rec-done-' + rs.sid); } catch (_) {}
+    }, 300000);
+    showToast('录制已保存到下载（' + fmtBytes(blob.size) + '）');
+  } finally {
+    if (rs.release) { rs.release(); rs.release = null; }
+  }
 }
 function stopRec() {
   if (!recorder) return;
-  try { recorder.stop(); } catch (_) {}
+  const rec = recorder;
   recorder = null;
   clearInterval(recTicker);
+  try { rec.stop(); } catch (_) {}
   document.getElementById('recBtn').classList.remove('rec-active');
   document.getElementById('recLabel').textContent = '录制';
-  showToast('录制已保存到下载');
+  recRenderStat();
+  showToast('正在保存录制…');
 }
 const recBtnEl = document.getElementById('recBtn');
 if (recBtnEl) recBtnEl.onclick = toggleRec;
+// ---------- webm → mp4（页面内转换，文件不上传，全程在本机浏览器里完成） ----------
+// H.264 视频原样拷贝（不重编码、画质无损、几乎秒完），只把 Opus 音频转成 AAC，
+// 这样 QuickTime / 剪映 / 达芬奇 / FCP 都能直接打开。
+let mp4Busy = false;
+async function convertToMp4(file, onProgress) {
+  const mb = await import('./assets/mediabunny.min.js');
+  const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+  const output = new mb.Output({ format: new mb.Mp4OutputFormat({ fastStart: 'in-memory' }), target: new mb.BufferTarget() });
+  const conv = await mb.Conversion.init({ input, output, audio: { codec: 'aac', bitrate: 160000, forceTranscode: true } });
+  if (!conv.isValid) {
+    const why = conv.discardedTracks.map((d) => d.reason).filter(Boolean).join('、');
+    throw new Error(why ? '这个文件无法转换：' + why : '文件里没有可转换的音视频（可能是空文件或已损坏）');
+  }
+  conv.onProgress = (p) => onProgress && onProgress(p);
+  await conv.execute();
+  return new Blob([output.target.buffer], { type: 'video/mp4' });
+}
+const mp4UI = (() => {
+  const $p = (id) => document.getElementById(id);
+  let hideTimer = null;
+  return {
+    show(title, name, cls) {
+      clearTimeout(hideTimer);
+      const p = $p('mp4Panel');
+      p.hidden = false; p.className = 'mp4-panel' + (cls ? ' ' + cls : '');
+      $p('mp4Title').textContent = title; $p('mp4Name').textContent = name || '';
+    },
+    progress(pct, msg) {
+      $p('mp4Fill').style.width = pct + '%'; $p('mp4Pct').textContent = pct + '%';
+      if (msg != null) $p('mp4Msg').textContent = msg;
+    },
+    hideLater(ms) { clearTimeout(hideTimer); hideTimer = setTimeout(() => { $p('mp4Panel').hidden = true; }, ms); },
+    hide() { clearTimeout(hideTimer); $p('mp4Panel').hidden = true; },
+  };
+})();
+document.getElementById('mp4Close').onclick = () => mp4UI.hide();
+function mp4ErrText(err) {
+  const m = err && err.message ? String(err.message) : String(err);
+  if (/unsupported or unrecognizable format/i.test(m)) return '无法识别这个文件的格式（不是有效的视频文件，或文件已损坏）';
+  if (/[\u4e00-\u9fa5]/.test(m)) return m; // 已经是中文的原样给
+  return '转换出错：' + m;
+}
+async function runToMp4(files) {
+  if (mp4Busy || !files.length) return;
+  mp4Busy = true;
+  const label = document.getElementById('toMp4Label');
+  const results = [];
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const seq = files.length > 1 ? '（' + (i + 1) + '/' + files.length + '）' : '';
+      mp4UI.show('正在转换为 MP4' + seq, f.name);
+      mp4UI.progress(0, '读取文件 ' + fmtBytes(f.size));
+      label.textContent = '0%';
+      try {
+        const t0 = performance.now();
+        const blob = await convertToMp4(f, (p) => {
+          const pct = Math.min(99, Math.round(p * 100));
+          label.textContent = pct + '%';
+          mp4UI.progress(pct, '视频直接拷贝，音频转 AAC');
+        });
+        saveBlobAs(blob, f.name.replace(/\.[^.]+$/, '') + '.mp4');
+        const sec = ((performance.now() - t0) / 1000).toFixed(1);
+        results.push({ ok: true, name: f.name, size: blob.size });
+        mp4UI.show('转换完成' + seq, f.name.replace(/\.[^.]+$/, '') + '.mp4', 'done');
+        mp4UI.progress(100, fmtBytes(blob.size) + ' · 用时 ' + sec + ' 秒 · 已在下载里');
+      } catch (err) {
+        console.error(err);
+        results.push({ ok: false, name: f.name, why: mp4ErrText(err) });
+        mp4UI.show('转换失败' + seq, f.name, 'fail');
+        mp4UI.progress(0, mp4ErrText(err));
+      }
+      await new Promise((r) => setTimeout(r, files.length > 1 ? 1200 : 400)); // 多文件连续下载：错开一下，也让人看清每个的结果
+    }
+    const okN = results.filter((r) => r.ok).length;
+    if (files.length > 1) {
+      const bad = results.filter((r) => !r.ok);
+      mp4UI.show(okN === files.length ? '全部转换完成' : '转换结束：成功 ' + okN + ' / ' + files.length, bad.length ? '失败：' + bad.map((r) => r.name).join('、') : '', okN === files.length ? 'done' : 'fail');
+      mp4UI.progress(okN === files.length ? 100 : Math.round(okN / files.length * 100), bad.length ? bad[0].why : okN + ' 个都已在下载里');
+    }
+    // 成功 8 秒后自动收起；失败留着，等人看完自己关
+    if (okN === files.length) mp4UI.hideLater(8000);
+  } finally {
+    label.textContent = '转MP4';
+    mp4Busy = false;
+  }
+}
+function autoMp4On() { try { return localStorage.getItem('ssl-auto-mp4') === '1'; } catch (_) { return false; } }
+(function bindToMp4() {
+  const btn = document.getElementById('toMp4Btn'), inp = document.getElementById('toMp4File');
+  if (!btn || !inp) return;
+  const auto = document.getElementById('autoMp4');
+  if (auto) {
+    auto.checked = autoMp4On();
+    auto.onchange = () => {
+      try { localStorage.setItem('ssl-auto-mp4', auto.checked ? '1' : '0'); } catch (_) {}
+      showToast(auto.checked ? '已开启：录完自动再转一份 MP4' : '已关闭：录完只保存 webm');
+    };
+  }
+  btn.onclick = () => { if (mp4Busy) return showToast('正在转换，稍等'); inp.value = ''; inp.click(); };
+  inp.onchange = () => runToMp4(Array.from(inp.files || []));
+})();
+
+// 页面打开时检查有没有上次没保存完的录制（刷新/崩溃/误关遗留）。
+// 只有「确认下载」后才删库；点取消、弹窗被浏览器吞掉，数据都保留，下次打开再问。
+async function recoverLeftoverRecs() {
+  let rows;
+  try { rows = await recDB.all(); } catch (_) { return; }
+  const bySid = new Map();
+  rows.forEach((r) => { if (!bySid.has(r.sid)) bySid.set(r.sid, []); bySid.get(r.sid).push(r); });
+  for (const [sid, list] of bySid) {
+    let doneAt = null;
+    try { doneAt = localStorage.getItem('ssl-rec-done-' + sid); } catch (_) {}
+    if (doneAt) { // 正常保存过的：超过 5 分钟才清，期间不当遗留
+      if (Date.now() - Number(doneAt) > 300000) {
+        await recDB.removeSid(sid).catch(() => {});
+        try { localStorage.removeItem('ssl-rec-done-' + sid); } catch (_) {}
+      }
+      continue;
+    }
+    if (navigator.locks) { // 锁还被别的页面持有 = 另一个标签页正在录，别动它
+      const held = await navigator.locks.request('ssl-rec-' + sid, { ifAvailable: true }, (lock) => !lock);
+      if (held) continue;
+    }
+    list.sort((a, b) => a.seq - b.seq);
+    const blob = new Blob(list.map((r) => r.blob), { type: list[0].mime });
+    const t = new Date(Number(sid.slice(1))).toLocaleString('zh-CN', { hour12: false });
+    const ok = confirm('发现上次没保存完的录制（' + t + '，约 ' + fmtBytes(blob.size) + '）。\n要现在保存到下载吗？\n（点取消会保留，下次打开页面再问）');
+    if (!ok) continue;
+    saveBlobAs(blob, '同屏录制-恢复-' + fileStamp(Number(sid.slice(1))) + '.' + list[0].ext);
+    try { localStorage.setItem('ssl-rec-done-' + sid, String(Date.now())); } catch (_) {}
+    await new Promise((r) => setTimeout(r, 1500));
+    await recDB.removeSid(sid).catch(() => {});
+    try { localStorage.removeItem('ssl-rec-done-' + sid); } catch (_) {}
+  }
+}
+recoverLeftoverRecs();
 
 // 文件面板：本场发送过的文件与状态
 const sentFiles = [];
@@ -1363,6 +1827,23 @@ document.addEventListener('keydown', (e) => {
   else if (e.code === 'KeyV') { e.preventDefault(); const cb = document.getElementById('camBtn'); if (cb && !cb.disabled) cb.click(); }
   else if (e.code === 'KeyS') { e.preventDefault(); takeShot(); }
   else if (e.code === 'KeyR') { e.preventDefault(); toggleRec(); }
+});
+
+// 防误退出：共享/录制期间，页内跳转链接改在新标签打开，关闭/刷新/后退时弹确认
+// （整页一旦卸载，MediaRecorder 和屏幕共享都会立刻中断，已录内容来不及保存）
+document.querySelectorAll('a[data-keep-live]').forEach((a) => {
+  a.addEventListener('click', (e) => {
+    if (!screenTrack && !recorder) return; // 没在播也没在录，正常跳转
+    e.preventDefault();
+    window.open(a.href, '_blank', 'noopener');
+    showToast('直播/录制中：已在新标签页打开，当前页保持不断');
+  });
+});
+window.addEventListener('beforeunload', (e) => {
+  if (!screenTrack && !recorder) return;
+  e.preventDefault();
+  e.returnValue = recorder ? '正在录制，离开会丢失本次录制' : '正在直播，离开会中断直播';
+  return e.returnValue;
 });
 
 // e2e 断言钩子（fake 模式）
